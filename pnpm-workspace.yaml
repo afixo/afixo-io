@@ -1,0 +1,6 @@
+# pnpm >= 10 refuses to run dependency install scripts unless they are approved here.
+# esbuild and workerd only fetch/verify their platform binaries; both are needed for
+# `astro build` and `wrangler dev`. Add new entries with `pnpm approve-builds`.
+allowBuilds:
+  esbuild: true
+  workerd: true
