@@ -1,0 +1,83 @@
+---
+export const prerender = false;
+
+import App from '../../layouts/App.astro';
+import Card from '../../components/Card.astro';
+import Empty from '../../components/Empty.astro';
+
+const session = Astro.locals.session;
+---
+
+<App title="Overview" intro={`Signed in as @${session?.handle ?? '…'}. Everything below is loaded from /api/v1 on your behalf.`}>
+	<div class="grid gap-4 sm:grid-cols-3">
+		<Card title="Personas">
+			<p id="count-personas" class="text-3xl font-semibold">…</p>
+			<a href="/app/personas" class="link mt-2 inline-block text-sm">Manage personas →</a>
+		</Card>
+		<Card title="API clients">
+			<p id="count-clients" class="text-3xl font-semibold">…</p>
+			<a href="/app/clients" class="link mt-2 inline-block text-sm">Manage clients →</a>
+		</Card>
+		<Card title="Policies">
+			<p id="count-rules" class="text-3xl font-semibold">…</p>
+			<a href="/app/policies" class="link mt-2 inline-block text-sm">Manage rules →</a>
+		</Card>
+	</div>
+
+	<Card title="Recent decisions" class="mt-6">
+		<div id="recent"><Empty message="Loading…" /></div>
+		<a href="/app/audit" class="link mt-3 inline-block text-sm">Full audit log →</a>
+	</Card>
+
+	<Card title="Try it" class="mt-6">
+		<p class="text-sm text-zinc-600 dark:text-zinc-400">
+			Register an API client, write a rule, then use the <a href="/app/explorer" class="link">Explorer</a> to call
+			<code class="font-mono">/v1/disclose</code> as that client for every purpose at once.
+		</p>
+	</Card>
+</App>
+
+<script>
+	import { api } from '../../lib/api';
+	import { errorMessage, fmtTime, h, must } from '../../lib/ui';
+
+	const set = (id: string, value: string) => {
+		must<HTMLElement>(`#${id}`).textContent = value;
+	};
+	const recent = must<HTMLElement>('#recent');
+
+	const [personas, clients, rules, audit] = await Promise.allSettled([
+		api.personas.list(),
+		api.requesters.list(),
+		api.rules.list(),
+		api.audit.list({ limit: 5 }),
+	]);
+
+	set('count-personas', personas.status === 'fulfilled' ? String(personas.value.length) : '–');
+	set('count-clients', clients.status === 'fulfilled' ? String(clients.value.length) : '–');
+	set('count-rules', rules.status === 'fulfilled' ? String(rules.value.length) : '–');
+
+	if (audit.status !== 'fulfilled') {
+		recent.replaceChildren(h('p', { class: 'text-sm text-rose-600' }, `Could not load the audit log: ${errorMessage(audit.reason)}`));
+	} else if (!audit.value.events.length) {
+		recent.replaceChildren(h('p', { class: 'text-sm text-zinc-500' }, 'No disclosure decisions yet.'));
+	} else {
+		recent.replaceChildren(
+			h(
+				'ul',
+				{ class: 'divide-y divide-zinc-200 text-sm dark:divide-zinc-800' },
+				...audit.value.events.map((e) =>
+					h(
+						'li',
+						{ class: 'flex flex-wrap items-center gap-x-3 gap-y-1 py-2' },
+						h('span', { class: `pill ${e.decision === 'allow' ? 'pill-ok' : 'pill-warn'}` }, e.decision),
+						h('span', { class: 'font-mono text-xs' }, e.purpose),
+						h('span', { class: 'text-zinc-500' }, e.requester_name ?? e.requester_id ?? 'unknown requester'),
+						e.persona ? h('span', {}, `→ ${e.persona}`) : null,
+						h('span', { class: 'ml-auto text-xs text-zinc-500' }, fmtTime(e.at)),
+					),
+				),
+			),
+		);
+	}
+</script>

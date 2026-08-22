@@ -1,0 +1,184 @@
+---
+export const prerender = false;
+
+import App from '../../layouts/App.astro';
+import Card from '../../components/Card.astro';
+import Empty from '../../components/Empty.astro';
+import SensitivityBadge from '../../components/SensitivityBadge.astro';
+import { SENSITIVITIES } from '../../lib/api';
+---
+
+<App
+	title="Personas"
+	intro="A persona is a named bundle of typed fields. Each field's sensitivity tier is the ceiling a rule can raise or lower, so it is visible while you edit."
+>
+	<p class="mb-5 flex flex-wrap items-center gap-2 text-sm text-zinc-500">
+		Tiers: {SENSITIVITIES.map((s) => <SensitivityBadge level={s} />)}
+	</p>
+
+	<Card title="New persona">
+		<form id="create-persona" class="flex flex-wrap items-end gap-2">
+			<label class="block text-sm">
+				<span class="mb-1 block text-zinc-500">Name</span>
+				<input name="name" required maxlength="64" placeholder="work" class="input" />
+			</label>
+			<button class="btn btn-primary">Create persona</button>
+			<span id="create-status" class="text-sm"></span>
+		</form>
+	</Card>
+
+	<div id="personas" class="mt-6 space-y-4"><Empty message="Loading personas…" /></div>
+</App>
+
+<script>
+	import { api, SENSITIVITIES, SENSITIVITY_LABEL, toSensitivity, type Field, type Persona } from '../../lib/api';
+	import { badge, emptyState, errorMessage, formValues, h, must, status } from '../../lib/ui';
+
+	const list = must<HTMLElement>('#personas');
+	const createForm = must<HTMLFormElement>('#create-persona');
+	const createStatus = must<HTMLElement>('#create-status');
+
+	function sensitivitySelect(value: number, name = 'sensitivity'): HTMLSelectElement {
+		return h(
+			'select',
+			{ name, class: 'input', 'aria-label': 'sensitivity' },
+			...SENSITIVITIES.map((s) => h('option', { value: String(s), selected: s === value }, `${s} · ${SENSITIVITY_LABEL[s]}`)),
+		);
+	}
+
+	function fieldRow(persona: Persona, field: Field, note: HTMLElement): HTMLTableRowElement {
+		const value = h('input', { class: 'input w-full', value: field.value, 'aria-label': `value of ${field.key}` });
+		const sens = sensitivitySelect(field.sensitivity);
+		const save = h(
+			'button',
+			{
+				type: 'button',
+				class: 'btn btn-sm',
+				onclick: async () => {
+					try {
+						status(note, `Saving ${field.key}…`);
+						await api.personas.putField(persona.id, field.key, { value: value.value, sensitivity: toSensitivity(sens.value) });
+						await load();
+					} catch (e) {
+						status(note, errorMessage(e), 'error');
+					}
+				},
+			},
+			'Save',
+		);
+		const remove = h(
+			'button',
+			{
+				type: 'button',
+				class: 'btn btn-sm btn-danger',
+				onclick: async () => {
+					if (!confirm(`Delete field "${field.key}" from ${persona.name}?`)) return;
+					try {
+						await api.personas.deleteField(persona.id, field.key);
+						await load();
+					} catch (e) {
+						status(note, errorMessage(e), 'error');
+					}
+				},
+			},
+			'Delete',
+		);
+		return h(
+			'tr',
+			{},
+			h('td', { class: 'font-mono text-xs' }, field.key),
+			h('td', { class: 'w-full' }, value),
+			h('td', { class: 'whitespace-nowrap' }, badge(field.sensitivity), ' ', sens),
+			h('td', { class: 'text-right whitespace-nowrap' }, save, ' ', remove),
+		);
+	}
+
+	function personaCard(persona: Persona): HTMLElement {
+		const note = h('p', { class: 'mt-2 text-sm text-zinc-500' });
+		const table = persona.fields.length
+			? h(
+					'table',
+					{ class: 'table' },
+					h('thead', {}, h('tr', {}, h('th', {}, 'Key'), h('th', {}, 'Value'), h('th', {}, 'Sensitivity'), h('th'))),
+					h('tbody', {}, ...persona.fields.map((f) => fieldRow(persona, f, note))),
+				)
+			: emptyState('No fields yet.');
+
+		const add = h(
+			'form',
+			{ class: 'mt-3 flex flex-wrap items-end gap-2' },
+			h('input', { name: 'key', required: true, pattern: '[A-Za-z0-9_.\\-]+', placeholder: 'key, e.g. email', class: 'input', 'aria-label': 'field key' }),
+			h('input', { name: 'value', required: true, placeholder: 'value', class: 'input', 'aria-label': 'field value' }),
+			sensitivitySelect(1),
+			h('button', { class: 'btn' }, 'Add field'),
+		);
+		add.addEventListener('submit', async (ev) => {
+			ev.preventDefault();
+			const v = formValues(add);
+			try {
+				status(note, 'Saving…');
+				await api.personas.putField(persona.id, (v.key ?? '').trim(), { value: v.value ?? '', sensitivity: toSensitivity(v.sensitivity) });
+				await load();
+			} catch (e) {
+				status(note, errorMessage(e), 'error');
+			}
+		});
+
+		const remove = h(
+			'button',
+			{
+				type: 'button',
+				class: 'btn btn-sm btn-danger',
+				onclick: async () => {
+					if (!confirm(`Delete persona "${persona.name}" and all its fields? Rules that point at it will stop disclosing anything.`)) return;
+					try {
+						await api.personas.remove(persona.id);
+						await load();
+					} catch (e) {
+						status(note, errorMessage(e), 'error');
+					}
+				},
+			},
+			'Delete persona',
+		);
+
+		return h(
+			'section',
+			{ class: 'card' },
+			h(
+				'header',
+				{ class: 'mb-3 flex items-center justify-between gap-3' },
+				h('h2', { class: 'font-semibold' }, persona.name, ' ', h('span', { class: 'font-mono text-xs font-normal text-zinc-500' }, persona.id)),
+				remove,
+			),
+			table,
+			add,
+			note,
+		);
+	}
+
+	async function load(): Promise<void> {
+		try {
+			const personas = await api.personas.list();
+			list.replaceChildren(...(personas.length ? personas.map(personaCard) : [emptyState('No personas yet — create one above.')]));
+		} catch (e) {
+			list.replaceChildren(h('p', { class: 'text-sm text-rose-600' }, `Could not load personas: ${errorMessage(e)}`));
+		}
+	}
+
+	createForm.addEventListener('submit', async (ev) => {
+		ev.preventDefault();
+		const { name } = formValues(createForm);
+		try {
+			status(createStatus, 'Creating…');
+			await api.personas.create({ name: (name ?? '').trim() });
+			createForm.reset();
+			status(createStatus, 'Created.', 'ok');
+			await load();
+		} catch (e) {
+			status(createStatus, errorMessage(e), 'error');
+		}
+	});
+
+	load();
+</script>

@@ -1,0 +1,46 @@
+---
+/**
+ * Prerendered. The sign-in link is a plain anchor (not a form) on purpose:
+ * afixo-api answers it with a 302 to GitHub, and `form-action 'self'` in the CSP
+ * would block that redirect for a form post. `?error=<code>` comes from afixo-api
+ * when the callback fails (DESIGN.md §4).
+ */
+import Base from '../layouts/Base.astro';
+import SiteHeader from '../components/SiteHeader.astro';
+---
+
+<Base title="Sign in">
+	<SiteHeader />
+	<main class="mx-auto max-w-md px-6 py-16">
+		<h1 class="text-2xl font-semibold tracking-tight">Sign in</h1>
+		<p class="mt-2 text-sm text-zinc-600 dark:text-zinc-400">
+			Subjects sign in with GitHub. You will be sent to GitHub and straight back to your dashboard.
+		</p>
+		<p id="login-error" hidden class="mt-4 rounded-md border border-rose-300 bg-rose-50 p-3 text-sm text-rose-800 dark:border-rose-900 dark:bg-rose-950 dark:text-rose-300"></p>
+		<a href="/api/v1/auth/github/login" class="btn btn-primary mt-6">Continue with GitHub</a>
+		<p id="already" hidden class="mt-4 text-sm text-zinc-500">
+			You appear to be signed in already — <a href="/app" class="link">open the dashboard</a>.
+		</p>
+	</main>
+</Base>
+
+<script>
+	import { stateFromDocument } from '../lib/session';
+
+	const MESSAGES: Record<string, string> = {
+		access_denied: 'GitHub sign-in was cancelled.',
+		login_failed: 'GitHub sign-in could not be completed. Please try again.',
+		invalid_state: 'The sign-in request expired or did not match. Please try again.',
+		state_mismatch: 'The sign-in request expired or did not match. Please try again.',
+		oauth_failed: 'GitHub could not complete the sign-in. Please try again.',
+		session_expired: 'Your session expired. Please sign in again.',
+	};
+
+	const code = new URLSearchParams(window.location.search).get('error');
+	if (code) {
+		const el = document.getElementById('login-error')!;
+		el.textContent = MESSAGES[code] ?? `Sign-in failed (${code}).`;
+		el.hidden = false;
+	}
+	if (stateFromDocument()) document.getElementById('already')!.hidden = false;
+</script>

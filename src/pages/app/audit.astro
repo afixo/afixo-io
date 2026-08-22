@@ -1,0 +1,105 @@
+---
+export const prerender = false;
+
+import App from '../../layouts/App.astro';
+import Card from '../../components/Card.astro';
+---
+
+<App
+	title="Audit"
+	intro="Every request made against your identity — allowed or denied — with the requester, the purpose, the persona returned and the exact keys released. Entries are hash-chained; verification walks the chain on the server."
+>
+	<Card title="Chain">
+		<div class="flex flex-wrap items-center gap-3">
+			<button id="verify" type="button" class="btn">Verify chain</button>
+			<span id="verify-out" class="text-sm text-zinc-500"></span>
+		</div>
+	</Card>
+
+	<Card title="Decisions" class="mt-6">
+		<div class="overflow-x-auto">
+			<table class="table">
+				<thead>
+					<tr><th>When</th><th>Decision</th><th>Requester</th><th>Purpose</th><th>Persona</th><th>Disclosed keys</th><th>Withheld / reason</th></tr>
+				</thead>
+				<tbody id="events">
+					<tr><td colspan="7" class="text-zinc-500">Loading…</td></tr>
+				</tbody>
+			</table>
+		</div>
+		<div class="mt-3 flex items-center gap-3">
+			<button id="more" type="button" hidden class="btn btn-sm">Load more</button>
+			<span id="audit-status" class="text-sm text-zinc-500"></span>
+		</div>
+	</Card>
+</App>
+
+<script>
+	import { api, type AuditEvent } from '../../lib/api';
+	import { errorMessage, fmtTime, h, must, status, td } from '../../lib/ui';
+
+	const tbody = must<HTMLElement>('#events');
+	const more = must<HTMLButtonElement>('#more');
+	const note = must<HTMLElement>('#audit-status');
+	const verifyButton = must<HTMLButtonElement>('#verify');
+	const verifyOut = must<HTMLElement>('#verify-out');
+
+	let cursor: string | null = null;
+	let loaded = 0;
+
+	function row(e: AuditEvent): HTMLTableRowElement {
+		return h(
+			'tr',
+			{},
+			td(h('span', { class: 'whitespace-nowrap text-zinc-500' }, fmtTime(e.at))),
+			td(h('span', { class: `pill ${e.decision === 'allow' ? 'pill-ok' : 'pill-warn'}` }, e.decision)),
+			td(e.requester_name ?? e.requester_id ?? '—'),
+			td(h('code', { class: 'font-mono text-xs' }, e.purpose)),
+			td(e.persona ?? '—'),
+			td(e.disclosed_keys?.length ? h('code', { class: 'font-mono text-xs' }, e.disclosed_keys.join(', ')) : '—'),
+			td(e.withheld_keys?.length ? h('code', { class: 'font-mono text-xs' }, e.withheld_keys.join(', ')) : (e.reason ?? '—')),
+		);
+	}
+
+	async function loadPage(): Promise<void> {
+		more.disabled = true;
+		try {
+			const page = await api.audit.list({ limit: 25, cursor });
+			if (!loaded) tbody.replaceChildren();
+			if (!loaded && !page.events.length) {
+				tbody.replaceChildren(h('tr', {}, h('td', { colspan: '7', class: 'text-zinc-500' }, 'No decisions recorded yet.')));
+			} else {
+				tbody.append(...page.events.map(row));
+			}
+			loaded += page.events.length;
+			cursor = page.next_cursor;
+			more.hidden = !cursor;
+			status(note, `${loaded} event${loaded === 1 ? '' : 's'} loaded${cursor ? ', more available' : ''}.`);
+		} catch (e) {
+			status(note, errorMessage(e), 'error');
+		} finally {
+			more.disabled = false;
+		}
+	}
+
+	verifyButton.addEventListener('click', async () => {
+		verifyButton.disabled = true;
+		try {
+			status(verifyOut, 'Verifying…');
+			const v = await api.audit.verify();
+			const length = typeof v.length === 'number' ? ` (${v.length} entries)` : '';
+			status(
+				verifyOut,
+				v.ok ? `Chain intact${length}.` : `Chain broken${v.broken_at ? ` at ${v.broken_at}` : ''}${v.message ? `: ${v.message}` : ''}.`,
+				v.ok ? 'ok' : 'error',
+			);
+		} catch (e) {
+			status(verifyOut, errorMessage(e), 'error');
+		} finally {
+			verifyButton.disabled = false;
+		}
+	});
+
+	more.addEventListener('click', () => void loadPage());
+	loadPage();
+</script>

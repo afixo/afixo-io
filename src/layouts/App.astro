@@ -1,0 +1,52 @@
+---
+/**
+ * Dashboard chrome for /app/* (on-demand only). The handle comes from the
+ * cosmetic state cookie parsed by the middleware; it is display-only.
+ */
+import Base from './Base.astro';
+import Nav from '../components/Nav.astro';
+
+interface Props {
+	title: string;
+	/** one-line help shown under the page title */
+	intro?: string;
+}
+
+const { title, intro } = Astro.props;
+const session = Astro.locals.session ?? null;
+---
+
+<Base title={title}>
+	<div class="flex min-h-screen">
+		<aside class="flex w-56 shrink-0 flex-col gap-6 border-r border-zinc-200 p-4 dark:border-zinc-800">
+			<a href="/" class="text-lg font-semibold tracking-tight">Afixo</a>
+			<Nav current={Astro.url.pathname} />
+			<div class="mt-auto text-sm">
+				<p class="truncate text-zinc-500" title={session?.sub}>
+					@{session?.handle ?? 'anonymous'}
+				</p>
+				<button id="logout" type="button" class="btn btn-sm mt-2">Sign out</button>
+			</div>
+		</aside>
+		<main class="min-w-0 flex-1 p-6">
+			<div class="mx-auto max-w-5xl">
+				<h1 class="text-xl font-semibold">{title}</h1>
+				{intro && <p class="mt-1 mb-5 text-sm text-zinc-500">{intro}</p>}
+				<slot />
+			</div>
+		</main>
+	</div>
+</Base>
+
+<script>
+	import { api } from '../lib/api';
+
+	document.getElementById('logout')?.addEventListener('click', async () => {
+		try {
+			await api.auth.logout();
+		} catch {
+			// Cookies may already be gone; either way the dashboard is no longer usable.
+		}
+		window.location.assign('/');
+	});
+</script>

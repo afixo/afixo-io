@@ -1,0 +1,16 @@
+---
+import Base from '../layouts/Base.astro';
+import SiteHeader from '../components/SiteHeader.astro';
+---
+
+<Base title="Not found">
+	<SiteHeader />
+	<main class="mx-auto max-w-md px-6 py-24 text-center">
+		<p class="font-mono text-sm text-zinc-500">404</p>
+		<h1 class="mt-2 text-2xl font-semibold tracking-tight">There is nothing here.</h1>
+		<p class="mt-3 text-sm text-zinc-600 dark:text-zinc-400">
+			Check the address, or go back to the <a href="/" class="link">home page</a> or the
+			<a href="/app" class="link">dashboard</a>.
+		</p>
+	</main>
+</Base>

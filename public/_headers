@@ -1,0 +1,13 @@
+# Served by the Workers static-asset layer (prerendered pages, /_astro/*, favicon).
+# On-demand responses get the same headers from src/middleware.ts — keep both in sync.
+# `frame-ancestors` only works as a header, which is why this is not a <meta> tag.
+/*
+  X-Content-Type-Options: nosniff
+  Referrer-Policy: strict-origin-when-cross-origin
+  Permissions-Policy: camera=(), microphone=(), geolocation=(), payment=(), usb=()
+  X-Frame-Options: DENY
+  Content-Security-Policy: default-src 'self'; script-src 'self'; style-src 'self'; connect-src 'self' https://api.afixo.io; img-src 'self' data: https://avatars.githubusercontent.com; font-src 'self'; object-src 'none'; frame-ancestors 'none'; base-uri 'self'; form-action 'self'
+
+# Hashed build output is immutable.
+/_astro/*
+  Cache-Control: public, max-age=31536000, immutable

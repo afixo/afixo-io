@@ -1,1 +1,70 @@
 @import "tailwindcss";
+
+/* Design tokens. Dark mode follows `prefers-color-scheme` (Tailwind's default `dark:` variant). */
+@theme {
+	--font-sans: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+	--font-mono: ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace;
+	--color-brand-50: oklch(0.97 0.02 255);
+	--color-brand-500: oklch(0.62 0.18 255);
+	--color-brand-600: oklch(0.53 0.19 255);
+	--color-brand-700: oklch(0.45 0.18 255);
+}
+
+@layer base {
+	html {
+		color-scheme: light dark;
+	}
+	body {
+		@apply bg-white text-zinc-900 dark:bg-zinc-950 dark:text-zinc-100;
+	}
+}
+
+/* A handful of shared primitives; everything else is utility classes in the templates.
+   No inline styles anywhere — the CSP is `style-src 'self'`. */
+@layer components {
+	.link {
+		@apply text-brand-600 hover:underline dark:text-brand-500;
+	}
+	.btn {
+		@apply inline-flex items-center gap-1.5 rounded-md border border-zinc-300 bg-white px-3 py-1.5 text-sm font-medium text-zinc-800 hover:bg-zinc-50 disabled:pointer-events-none disabled:opacity-50 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-100 dark:hover:bg-zinc-800;
+	}
+	.btn-primary {
+		@apply border-brand-600 bg-brand-600 text-white hover:bg-brand-700 dark:border-brand-600 dark:bg-brand-600 dark:text-white dark:hover:bg-brand-700;
+	}
+	.btn-danger {
+		@apply text-rose-700 hover:bg-rose-50 dark:text-rose-300 dark:hover:bg-rose-950;
+	}
+	.btn-sm {
+		@apply px-2 py-1 text-xs;
+	}
+	.input {
+		@apply rounded-md border border-zinc-300 bg-white px-2.5 py-1.5 text-sm text-zinc-900 placeholder:text-zinc-400 focus:ring-2 focus:ring-brand-500 focus:outline-none dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-100;
+	}
+	.card {
+		@apply rounded-lg border border-zinc-200 bg-white p-4 dark:border-zinc-800 dark:bg-zinc-900/60;
+	}
+	.badge {
+		@apply inline-flex items-center rounded px-1.5 py-0.5 text-xs font-medium whitespace-nowrap;
+	}
+	.pill {
+		@apply inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium whitespace-nowrap;
+	}
+	.pill-ok {
+		@apply bg-emerald-100 text-emerald-800 dark:bg-emerald-900/40 dark:text-emerald-300;
+	}
+	.pill-warn {
+		@apply bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-300;
+	}
+	.pill-muted {
+		@apply bg-zinc-100 text-zinc-700 dark:bg-zinc-800 dark:text-zinc-300;
+	}
+	.table {
+		@apply w-full text-sm;
+	}
+	.table th {
+		@apply pb-1 pr-3 text-left text-xs font-medium tracking-wide text-zinc-500 uppercase;
+	}
+	.table td {
+		@apply border-t border-zinc-200 py-2 pr-3 align-top dark:border-zinc-800;
+	}
+}

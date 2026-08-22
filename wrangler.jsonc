@@ -1,14 +1,66 @@
 {
 	"$schema": "./node_modules/wrangler/config-schema.json",
-	"compatibility_date": "2026-08-22",
-	"compatibility_flags": ["global_fetch_strictly_public"],
 	"name": "afixo-web",
 	"main": "@astrojs/cloudflare/entrypoints/server",
+	"compatibility_date": "2026-08-22",
+	"compatibility_flags": ["nodejs_compat", "global_fetch_strictly_public"],
+
+	// The site is served on its custom domains only — no workers.dev or preview hostnames.
+	"workers_dev": false,
+	"preview_urls": false,
+
+	// Static assets (prerendered pages, /_astro/*) are matched before the Worker runs.
+	// `html_handling` must match Astro's `trailingSlash: 'never'` + `build.format: 'file'`.
 	"assets": {
+		"binding": "ASSETS",
 		"directory": "./dist",
-		"binding": "ASSETS"
+		"html_handling": "drop-trailing-slash",
+		"not_found_handling": "404-page"
 	},
+
 	"observability": {
 		"enabled": true
+	},
+
+	// Requests on these hosts are the public machine API: src/fetch.ts hands them to
+	// afixo-api before Astro's router ever sees them. Everything else is the site.
+	"vars": {
+		"MACHINE_HOSTS": "api.afixo.io"
+	},
+
+	// /api/* (site host) and every request on a machine host are forwarded untouched to the
+	// api Worker — the session boundary. Deploy afixo-api first.
+	"services": [{ "binding": "API", "service": "afixo-api" }],
+
+	// Every public hostname of Afixo is this Worker. Nothing public resolves to the tunnel.
+	"routes": [
+		{ "pattern": "afixo.io", "custom_domain": true },
+		{ "pattern": "www.afixo.io", "custom_domain": true },
+		{ "pattern": "api.afixo.io", "custom_domain": true }
+	],
+
+	"env": {
+		"staging": {
+			"name": "afixo-web-staging",
+			"workers_dev": false,
+			"preview_urls": false,
+			// `routes` is INHERITABLE: omitting this would make staging claim afixo.io.
+			// staging.afixo.io additionally sits behind a Cloudflare Access email policy.
+			"routes": [
+				{ "pattern": "staging.afixo.io", "custom_domain": true },
+				{ "pattern": "api-staging.afixo.io", "custom_domain": true }
+			],
+			// `assets`, `services` and `vars` are NOT inheritable — restate them in full.
+			"assets": {
+				"binding": "ASSETS",
+				"directory": "./dist",
+				"html_handling": "drop-trailing-slash",
+				"not_found_handling": "404-page"
+			},
+			"vars": {
+				"MACHINE_HOSTS": "api-staging.afixo.io"
+			},
+			"services": [{ "binding": "API", "service": "afixo-api-staging" }]
+		}
 	}
 }

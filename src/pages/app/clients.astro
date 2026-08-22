@@ -1,0 +1,166 @@
+---
+export const prerender = false;
+
+import App from '../../layouts/App.astro';
+import Card from '../../components/Card.astro';
+import Empty from '../../components/Empty.astro';
+---
+
+<App
+	title="API clients"
+	intro="Requesters are OAuth2 clients. The server keeps only a hash of each secret, so the plaintext is shown once and cached in this browser (localStorage “afixo.clients”) for the Explorer."
+>
+	<Card title="Register a client">
+		<form id="register" class="flex flex-wrap items-end gap-2">
+			<label class="block text-sm">
+				<span class="mb-1 block text-zinc-500">Name</span>
+				<input name="name" required maxlength="64" placeholder="ShopCo Checkout" class="input" />
+			</label>
+			<button class="btn btn-primary">Register</button>
+			<span id="register-status" class="text-sm"></span>
+		</form>
+	</Card>
+
+	<section id="secret" hidden class="card mt-6 border-amber-300 dark:border-amber-800"></section>
+
+	<Card title="Registered clients" class="mt-6">
+		<div id="clients"><Empty message="Loading clients…" /></div>
+	</Card>
+</App>
+
+<script>
+	import { api, type Requester } from '../../lib/api';
+	import { forgetStoredClient, loadStoredClients, saveStoredClient, type StoredClient } from '../../lib/machine';
+	import { emptyState, errorMessage, fmtTime, formValues, h, must, status, td } from '../../lib/ui';
+
+	const list = must<HTMLElement>('#clients');
+	const form = must<HTMLFormElement>('#register');
+	const formStatus = must<HTMLElement>('#register-status');
+	const secretPanel = must<HTMLElement>('#secret');
+
+	function copyButton(text: string): HTMLButtonElement {
+		return h('button', { type: 'button', class: 'btn btn-sm', onclick: () => void navigator.clipboard?.writeText(text) }, 'Copy');
+	}
+
+	function showSecret(client: StoredClient, what: 'registered' | 'rotated'): void {
+		secretPanel.replaceChildren(
+			h('h2', { class: 'font-semibold' }, what === 'registered' ? `Client “${client.name}” registered` : `New secret for “${client.name}”`),
+			h(
+				'p',
+				{ class: 'mt-1 text-sm text-zinc-500' },
+				'This secret is shown once. It has been saved in this browser so the Explorer can act as this client; store it in your own secret manager too.',
+			),
+			h(
+				'dl',
+				{ class: 'mt-3 grid gap-2 text-sm' },
+				h('div', {}, h('dt', { class: 'text-zinc-500' }, 'client_id'), h('dd', { class: 'font-mono break-all' }, client.client_id, ' ', copyButton(client.client_id))),
+				h('div', {}, h('dt', { class: 'text-zinc-500' }, 'client_secret'), h('dd', { class: 'font-mono break-all' }, client.client_secret, ' ', copyButton(client.client_secret))),
+			),
+		);
+		secretPanel.hidden = false;
+	}
+
+	function row(r: Requester, stored: StoredClient | undefined, note: HTMLElement): HTMLTableRowElement {
+		const rotate = h(
+			'button',
+			{
+				type: 'button',
+				class: 'btn btn-sm',
+				onclick: async () => {
+					if (!confirm(`Rotate the secret for “${r.name}”? The current secret stops working immediately.`)) return;
+					try {
+						const res = await api.requesters.rotateSecret(r.id);
+						const client: StoredClient = {
+							id: r.id,
+							name: r.name,
+							client_id: res.client_id ?? r.client_id,
+							client_secret: res.client_secret,
+							saved_at: new Date().toISOString(),
+						};
+						saveStoredClient(client);
+						showSecret(client, 'rotated');
+						await load();
+					} catch (e) {
+						status(note, errorMessage(e), 'error');
+					}
+				},
+			},
+			'Rotate secret',
+		);
+		const forget = stored
+			? h(
+					'button',
+					{
+						type: 'button',
+						class: 'btn btn-sm',
+						onclick: () => {
+							forgetStoredClient(r.id);
+							void load();
+						},
+					},
+					'Forget local secret',
+				)
+			: null;
+		return h(
+			'tr',
+			{},
+			td(h('span', { class: 'font-medium' }, r.name)),
+			td(h('code', { class: 'font-mono text-xs break-all' }, r.client_id)),
+			td(h('span', { class: 'text-zinc-500' }, fmtTime(r.created_at))),
+			td(
+				stored
+					? h('span', { class: 'pill pill-ok', title: `saved ${fmtTime(stored.saved_at)}` }, 'secret in this browser')
+					: h('span', { class: 'pill pill-warn' }, 'no local secret — rotate to get one'),
+			),
+			h('td', { class: 'text-right whitespace-nowrap' }, rotate, forget ? ' ' : null, forget),
+		);
+	}
+
+	async function load(): Promise<void> {
+		try {
+			const requesters = await api.requesters.list();
+			const stored = loadStoredClients();
+			if (!requesters.length) {
+				list.replaceChildren(emptyState('No clients yet — register one above.'));
+				return;
+			}
+			const note = h('p', { class: 'mt-2 text-sm' });
+			list.replaceChildren(
+				h(
+					'table',
+					{ class: 'table' },
+					h('thead', {}, h('tr', {}, h('th', {}, 'Name'), h('th', {}, 'client_id'), h('th', {}, 'Created'), h('th', {}, 'Secret'), h('th'))),
+					h('tbody', {}, ...requesters.map((r) => row(r, stored.find((s) => s.id === r.id || s.client_id === r.client_id), note))),
+				),
+				note,
+			);
+		} catch (e) {
+			list.replaceChildren(h('p', { class: 'text-sm text-rose-600' }, `Could not load clients: ${errorMessage(e)}`));
+		}
+	}
+
+	form.addEventListener('submit', async (ev) => {
+		ev.preventDefault();
+		const { name } = formValues(form);
+		try {
+			status(formStatus, 'Registering…');
+			const reg = await api.requesters.create({ name: (name ?? '').trim() });
+			const client: StoredClient = {
+				id: reg.id,
+				name: reg.name,
+				client_id: reg.client_id,
+				client_secret: reg.client_secret,
+				saved_at: new Date().toISOString(),
+			};
+			saveStoredClient(client);
+			showSecret(client, 'registered');
+			form.reset();
+			status(formStatus, 'Registered.', 'ok');
+			await load();
+		} catch (e) {
+			status(formStatus, errorMessage(e), 'error');
+		}
+	});
+
+	load();
+</script>

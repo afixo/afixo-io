@@ -1,0 +1,243 @@
+---
+export const prerender = false;
+
+import App from '../../layouts/App.astro';
+import Card from '../../components/Card.astro';
+import Empty from '../../components/Empty.astro';
+import { PURPOSES, SENSITIVITIES, SENSITIVITY_LABEL } from '../../lib/api';
+---
+
+<App
+	title="Policies"
+	intro="Rules only ever grant. A request is denied unless a rule matches its (requester, purpose); the most specific rule wins, then priority, then the newest. Adding a rule can never restrict another."
+>
+	<Card title="New rule">
+		<form id="rule-form" class="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+			<label class="block text-sm">
+				<span class="mb-1 block text-zinc-500">Requester</span>
+				<select id="f-requester" name="requester_id" class="input w-full"><option value="">any requester</option></select>
+			</label>
+			<label class="block text-sm">
+				<span class="mb-1 block text-zinc-500">Purpose</span>
+				<select id="f-purpose" name="purpose" class="input w-full">
+					<option value="">any purpose</option>
+					{PURPOSES.map((p) => <option value={p}>{p}</option>)}
+				</select>
+			</label>
+			<label class="block text-sm">
+				<span class="mb-1 block text-zinc-500">Persona to disclose</span>
+				<select id="f-persona" name="persona_id" required class="input w-full"></select>
+			</label>
+			<label class="block text-sm">
+				<span class="mb-1 block text-zinc-500">Max sensitivity (ceiling)</span>
+				<select id="f-sensitivity" name="max_sensitivity" class="input w-full">
+					{SENSITIVITIES.map((s) => <option value={s} selected={s === 1}>{s} · {SENSITIVITY_LABEL[s]}</option>)}
+				</select>
+			</label>
+			<label class="block text-sm">
+				<span class="mb-1 block text-zinc-500">Allow keys (optional, comma-separated)</span>
+				<input id="f-allow" name="allow_keys" placeholder="name, email" class="input w-full" />
+			</label>
+			<label class="block text-sm">
+				<span class="mb-1 block text-zinc-500">Priority (tie-breaker)</span>
+				<input id="f-priority" name="priority" type="number" value="0" step="1" class="input w-full" />
+			</label>
+			<div class="flex items-center gap-3 sm:col-span-2 lg:col-span-3">
+				<button class="btn btn-primary">Create rule</button>
+				<span id="rule-status" class="text-sm"></span>
+			</div>
+		</form>
+		<p id="catch-all" class="mt-3 rounded-md border border-amber-300 bg-amber-50 p-3 text-sm text-amber-900 dark:border-amber-800 dark:bg-amber-950 dark:text-amber-200">
+			This is a catch-all: with no requester and no purpose it applies to every caller and every purpose that no more specific rule covers.
+		</p>
+		<div class="mt-4">
+			<h3 class="text-xs font-semibold tracking-wide text-zinc-500 uppercase">Live preview</h3>
+			<div id="preview" class="mt-2 grid gap-4 sm:grid-cols-2"><Empty message="Pick a persona to preview what this rule discloses." /></div>
+		</div>
+	</Card>
+
+	<Card title="Rules in force" class="mt-6">
+		<div id="rules"><Empty message="Loading rules…" /></div>
+	</Card>
+</App>
+
+<script>
+	import {
+		api,
+		isPurpose,
+		parseAllowKeys,
+		previewDisclosure,
+		specificity,
+		toSensitivity,
+		type Field,
+		type NewRule,
+		type Persona,
+		type Requester,
+		type Rule,
+	} from '../../lib/api';
+	import { badge, emptyState, errorMessage, h, must, status, td } from '../../lib/ui';
+
+	const form = must<HTMLFormElement>('#rule-form');
+	const formStatus = must<HTMLElement>('#rule-status');
+	const preview = must<HTMLElement>('#preview');
+	const catchAll = must<HTMLElement>('#catch-all');
+	const rulesBox = must<HTMLElement>('#rules');
+	const requesterSel = must<HTMLSelectElement>('#f-requester');
+	const purposeSel = must<HTMLSelectElement>('#f-purpose');
+	const personaSel = must<HTMLSelectElement>('#f-persona');
+	const sensSel = must<HTMLSelectElement>('#f-sensitivity');
+	const allowInput = must<HTMLInputElement>('#f-allow');
+	const priorityInput = must<HTMLInputElement>('#f-priority');
+
+	let personas: Persona[] = [];
+	let requesters: Requester[] = [];
+
+	function fillSelect(sel: HTMLSelectElement, options: { value: string; label: string }[], first?: { value: string; label: string }): void {
+		const previous = sel.value;
+		const all = first ? [first, ...options] : options;
+		sel.replaceChildren(...all.map((o) => h('option', { value: o.value }, o.label)));
+		if (all.some((o) => o.value === previous)) sel.value = previous;
+	}
+
+	function fieldList(title: string, fields: Field[], tone: string): HTMLElement {
+		return h(
+			'div',
+			{},
+			h('h4', { class: `mb-1 text-xs font-semibold tracking-wide uppercase ${tone}` }, `${title} (${fields.length})`),
+			fields.length
+				? h('ul', { class: 'space-y-1' }, ...fields.map((f) => h('li', { class: 'flex items-center gap-2 text-sm' }, h('code', { class: 'font-mono text-xs' }, f.key), badge(f.sensitivity))))
+				: h('p', { class: 'text-sm text-zinc-500' }, 'nothing'),
+		);
+	}
+
+	function renderPreview(): void {
+		catchAll.hidden = !(requesterSel.value === '' && purposeSel.value === '');
+		const persona = personas.find((p) => p.id === personaSel.value);
+		if (!persona) {
+			preview.replaceChildren(emptyState(personas.length ? 'Pick a persona to preview what this rule discloses.' : 'Create a persona first — a rule must name one.'));
+			return;
+		}
+		const { disclosed, withheld } = previewDisclosure(persona.fields, toSensitivity(sensSel.value), parseAllowKeys(allowInput.value));
+		preview.replaceChildren(
+			fieldList('Disclosed', disclosed, 'text-emerald-600 dark:text-emerald-400'),
+			fieldList('Withheld', withheld, 'text-rose-600 dark:text-rose-400'),
+		);
+	}
+
+	function ruleRow(rule: Rule): HTMLTableRowElement {
+		const requester = rule.requester_id ? (requesters.find((r) => r.id === rule.requester_id)?.name ?? rule.requester_id) : 'any requester';
+		const persona = personas.find((p) => p.id === rule.persona_id);
+		const disclosed = persona ? previewDisclosure(persona.fields, rule.max_sensitivity, rule.allow_keys).disclosed : [];
+		const remove = h(
+			'button',
+			{
+				type: 'button',
+				class: 'btn btn-sm btn-danger',
+				onclick: async () => {
+					if (!confirm('Delete this rule? Requests it currently allows will be denied unless another rule covers them.')) return;
+					try {
+						await api.rules.remove(rule.id);
+						await load();
+					} catch (e) {
+						status(formStatus, errorMessage(e), 'error');
+					}
+				},
+			},
+			'Delete',
+		);
+		return h(
+			'tr',
+			{},
+			td(requester),
+			td(h('code', { class: 'font-mono text-xs' }, rule.purpose ?? 'any purpose')),
+			td(persona ? persona.name : h('span', { class: 'text-rose-600' }, 'missing persona')),
+			td(badge(rule.max_sensitivity)),
+			td(rule.allow_keys?.length ? h('code', { class: 'font-mono text-xs' }, rule.allow_keys.join(', ')) : h('span', { class: 'text-zinc-500' }, 'all keys')),
+			td(String(rule.priority)),
+			td(String(specificity(rule))),
+			td(disclosed.length ? h('code', { class: 'font-mono text-xs' }, disclosed.map((f) => f.key).join(', ')) : h('span', { class: 'text-zinc-500' }, '—')),
+			h('td', { class: 'text-right' }, remove),
+		);
+	}
+
+	function renderRules(rules: Rule[]): void {
+		if (!rules.length) {
+			rulesBox.replaceChildren(emptyState('No rules yet — every disclosure request is currently denied.'));
+			return;
+		}
+		const ordered = [...rules].sort(
+			(a, b) => specificity(b) - specificity(a) || b.priority - a.priority || (b.created_at ?? '').localeCompare(a.created_at ?? ''),
+		);
+		rulesBox.replaceChildren(
+			h(
+				'div',
+				{ class: 'overflow-x-auto' },
+				h(
+					'table',
+					{ class: 'table' },
+					h(
+						'thead',
+						{},
+						h(
+							'tr',
+							{},
+							h('th', {}, 'Requester'),
+							h('th', {}, 'Purpose'),
+							h('th', {}, 'Persona'),
+							h('th', {}, 'Ceiling'),
+							h('th', {}, 'Allow keys'),
+							h('th', {}, 'Priority'),
+							h('th', {}, 'Specificity'),
+							h('th', {}, 'Would disclose'),
+							h('th'),
+						),
+					),
+					h('tbody', {}, ...ordered.map(ruleRow)),
+				),
+			),
+		);
+	}
+
+	async function load(): Promise<void> {
+		try {
+			const [p, r, rules] = await Promise.all([api.personas.list(), api.requesters.list(), api.rules.list()]);
+			personas = p;
+			requesters = r;
+			fillSelect(requesterSel, requesters.map((x) => ({ value: x.id, label: x.name })), { value: '', label: 'any requester' });
+			fillSelect(personaSel, personas.map((x) => ({ value: x.id, label: x.name })));
+			renderPreview();
+			renderRules(rules);
+		} catch (e) {
+			rulesBox.replaceChildren(h('p', { class: 'text-sm text-rose-600' }, `Could not load policies: ${errorMessage(e)}`));
+		}
+	}
+
+	form.addEventListener('input', renderPreview);
+	form.addEventListener('change', renderPreview);
+	form.addEventListener('submit', async (ev) => {
+		ev.preventDefault();
+		if (!personaSel.value) {
+			status(formStatus, 'A rule must name a persona.', 'error');
+			return;
+		}
+		const rule: NewRule = {
+			requester_id: requesterSel.value || null,
+			purpose: isPurpose(purposeSel.value) ? purposeSel.value : null,
+			persona_id: personaSel.value,
+			max_sensitivity: toSensitivity(sensSel.value),
+			allow_keys: parseAllowKeys(allowInput.value),
+			priority: Number.parseInt(priorityInput.value, 10) || 0,
+		};
+		try {
+			status(formStatus, 'Creating…');
+			await api.rules.create(rule);
+			status(formStatus, 'Rule created.', 'ok');
+			allowInput.value = '';
+			await load();
+		} catch (e) {
+			status(formStatus, errorMessage(e), 'error');
+		}
+	});
+
+	load();
+</script>

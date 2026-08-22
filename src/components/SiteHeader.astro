@@ -1,0 +1,23 @@
+---
+/** Public-page header. Swaps "Sign in" for "Dashboard" when the (cosmetic) state cookie is present. */
+---
+
+<header class="border-b border-zinc-200 dark:border-zinc-800">
+	<div class="mx-auto flex h-14 max-w-5xl items-center justify-between px-6">
+		<a href="/" class="text-lg font-semibold tracking-tight">Afixo</a>
+		<nav class="flex items-center gap-5 text-sm" aria-label="Site">
+			<a href="https://docs.afixo.io/" class="hover:underline">Docs</a>
+			<a href="/login" data-auth="out" class="btn btn-primary">Sign in</a>
+			<a href="/app" data-auth="in" hidden class="btn btn-primary">Dashboard</a>
+		</nav>
+	</div>
+</header>
+
+<script>
+	import { stateFromDocument } from '../lib/session';
+
+	if (stateFromDocument()) {
+		for (const el of document.querySelectorAll<HTMLElement>('[data-auth="out"]')) el.hidden = true;
+		for (const el of document.querySelectorAll<HTMLElement>('[data-auth="in"]')) el.hidden = false;
+	}
+</script>
