@@ -1,7 +1,12 @@
 /**
- * Two jobs, both for on-demand routes only (prerendered pages get their headers
- * from public/_headers at the asset layer):
+ * Three jobs, all for on-demand requests only (prerendered pages get their
+ * headers from public/_headers at the asset layer):
  *
+ *  0. machine hosts (api.afixo.io — the MACHINE_HOSTS var): every request on
+ *     such a host is the public machine API and goes straight to the afixo-api
+ *     binding with its original URL, before any routing. (Astro's `src/fetch.ts`
+ *     entry would be the natural place, but it does not work under `astro dev`
+ *     with the Cloudflare adapter — withastro/astro#17181.)
  *  1. /app/*  — cosmetic gate: no valid `__Host-afixo_state` cookie → 302 /login.
  *               The origin is the authority; this only avoids rendering an empty dashboard.
  *  2. security headers on every on-demand response. `frame-ancestors` is only
@@ -11,8 +16,23 @@
  * afixo-api owns those responses, including their Set-Cookie headers.
  */
 import { defineMiddleware } from 'astro:middleware';
+import { env } from 'cloudflare:workers';
 import { MACHINE_API_URL } from './lib/machine';
 import { stateFromCookies } from './lib/session';
+
+let hostsCache: { raw: string; hosts: Set<string> } | undefined;
+function machineHosts(): Set<string> {
+	const raw = (env as Partial<typeof env>).MACHINE_HOSTS ?? '';
+	if (hostsCache?.raw === raw) return hostsCache.hosts;
+	const hosts = new Set(
+		raw
+			.split(',')
+			.map((h) => h.trim().toLowerCase())
+			.filter(Boolean),
+	);
+	hostsCache = { raw, hosts };
+	return hosts;
+}
 
 const APP_PREFIX = '/app';
 const API_PREFIX = '/api/';
@@ -57,6 +77,19 @@ function withSecurityHeaders(response: Response): Response {
 
 export const onRequest = defineMiddleware(async (context, next) => {
 	if (context.isPrerendered) return next();
+
+	if (machineHosts().has(context.url.hostname.toLowerCase())) {
+		const api = (env as Partial<typeof env>).API;
+		if (!api) {
+			return Response.json(
+				{ error: 'api_unavailable', message: 'The API service binding is not configured in this environment.' },
+				{ status: 503 },
+			);
+		}
+		// The incoming Request carries `redirect: "manual"`; passing it through unchanged
+		// lets afixo-api's own redirects and status codes reach the client.
+		return api.fetch(context.request);
+	}
 
 	const { pathname } = context.url;
 	if (pathname.startsWith(API_PREFIX)) return next();

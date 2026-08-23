@@ -28,7 +28,7 @@
 		"enabled": true
 	},
 
-	// Requests on these hosts are the public machine API: src/fetch.ts hands them to
+	// Requests on these hosts are the public machine API: src/middleware.ts hands them to
 	// afixo-api before Astro's router ever sees them. Everything else is the site.
 	"vars": {
 		"MACHINE_HOSTS": "api.afixo.io"

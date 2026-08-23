@@ -7,7 +7,7 @@ Worker `afixo-web` on `afixo.io`.
 
 ```
 browser → afixo.io     → afixo-web ─┬─ /api/* ──────► [API binding] → afixo-api → origin.afixo.io     → gateway :8080
-client  → api.afixo.io → afixo-web ─┴─ src/fetch.ts ► [API binding] → afixo-api → origin-api.afixo.io → gateway :8081
+client  → api.afixo.io → afixo-web ─┴─ middleware ──► [API binding] → afixo-api → origin-api.afixo.io → gateway :8081
 ```
 
 `afixo-web` renders pages and forwards two kinds of traffic untouched to the `afixo-api` Worker,
