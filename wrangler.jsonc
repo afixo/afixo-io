@@ -17,10 +17,11 @@
 		"html_handling": "drop-trailing-slash",
 		"not_found_handling": "404-page",
 		// Navigation requests that match no asset would otherwise get the 404 page
-		// WITHOUT the Worker running — which is exactly what a browser does on
-		// /api/v1/auth/github/login and on the OAuth callback. These paths always
-		// run the Worker (api.afixo.io paths too, so a tab opened on the API gets JSON).
-		"run_worker_first": ["/api/*", "/v1/*", "/oauth/*"]
+		// WITHOUT the Worker running — which is exactly what a browser does on the
+		// on-demand dashboard (/app/*), on /api/v1/auth/github/login and on the OAuth
+		// callback. These paths always run the Worker (api.afixo.io paths too, so a
+		// tab opened on the API gets JSON). Every on-demand route must be listed here.
+		"run_worker_first": ["/app", "/app/*", "/api/*", "/v1/*", "/oauth/*"]
 	},
 
 	"observability": {
@@ -61,7 +62,7 @@
 				"directory": "./dist",
 				"html_handling": "drop-trailing-slash",
 				"not_found_handling": "404-page",
-				"run_worker_first": ["/api/*", "/v1/*", "/oauth/*"]
+				"run_worker_first": ["/app", "/app/*", "/api/*", "/v1/*", "/oauth/*"]
 			},
 			"vars": {
 				"MACHINE_HOSTS": "api-staging.afixo.io"
