@@ -1,6 +1,9 @@
 # build output
 dist/
 
+# generated from src/fetch.entry.ts by `pnpm build` (see that file)
+src/fetch.ts
+
 # Playwright MCP scratch output (screenshots, console logs)
 .playwright-mcp/
 

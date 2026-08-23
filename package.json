@@ -8,10 +8,10 @@
     "node": ">=24"
   },
   "scripts": {
-    "dev": "pnpm types && astro dev",
-    "build": "pnpm types && astro check && astro build",
+    "dev": "rm -f src/fetch.ts && pnpm types && astro dev",
+    "build": "cp src/fetch.entry.ts src/fetch.ts && pnpm types && astro check && astro build",
     "preview": "astro build && wrangler dev",
-    "check": "pnpm types && astro check",
+    "check": "rm -f src/fetch.ts && pnpm types && astro check",
     "deploy": "astro build && wrangler deploy",
     "deploy:staging": "CLOUDFLARE_ENV=staging astro build && wrangler deploy --env staging",
     "types": "wrangler types --include-runtime=false",
