@@ -38,6 +38,10 @@ landing page — harmless; API paths (`/v1/*`, `/oauth/*`) never collide with as
   `api-staging.afixo.io`). `assets`, `services` and `vars` are *not* inheritable: restate them.
 - **`html_handling: "drop-trailing-slash"`** matches `trailingSlash: 'never'` + `build.format: 'file'`.
   Links are slash-less (`/app/personas`, never `/app/personas/`). Change all three or none.
+- **`assets.run_worker_first: ["/api/*", "/v1/*", "/oauth/*"]` is load-bearing.** Static assets answer
+  *navigation* requests that match no file with the 404 page without running the Worker; without this
+  list the GitHub login link and the OAuth callback land on the 404 page. Any new path the Worker must
+  see on a browser navigation goes in that list.
 - **CSP is `script-src 'self'; style-src 'self'`.** No inline `<script>`, `<style>` or `style=""`.
   `assetsInlineLimit: 0` and `inlineStylesheets: 'never'` keep the build that way. Headers live in
   `public/_headers` (assets) and `src/middleware.ts` (on-demand) — keep them identical.
