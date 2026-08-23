@@ -1,36 +1,33 @@
 ---
+import Icon, { type IconName } from './Icon.astro';
+
 interface Props {
 	/** current pathname, for aria-current */
 	current: string;
+	class?: string;
 }
 
-const { current } = Astro.props;
+const { current, class: className } = Astro.props;
 
-const items = [
-	{ href: '/app', label: 'Overview' },
-	{ href: '/app/personas', label: 'Personas' },
-	{ href: '/app/clients', label: 'API clients' },
-	{ href: '/app/policies', label: 'Policies' },
-	{ href: '/app/explorer', label: 'Explorer' },
-	{ href: '/app/audit', label: 'Audit' },
+const items: { href: string; label: string; icon: IconName }[] = [
+	{ href: '/app', label: 'Overview', icon: 'home' },
+	{ href: '/app/personas', label: 'Personas', icon: 'persona' },
+	{ href: '/app/clients', label: 'API clients', icon: 'key' },
+	{ href: '/app/policies', label: 'Policies', icon: 'shield' },
+	{ href: '/app/explorer', label: 'Explorer', icon: 'compass' },
+	{ href: '/app/audit', label: 'Audit', icon: 'list' },
 ];
 ---
 
-<nav aria-label="Dashboard">
-	<ul class="flex flex-col gap-0.5 text-sm">
+<nav aria-label="Dashboard" class={className}>
+	<ul class="flex flex-col gap-0.5">
 		{
 			items.map((item) => {
 				const active = current === item.href;
 				return (
 					<li>
-						<a
-							href={item.href}
-							aria-current={active ? 'page' : undefined}
-							class:list={[
-								'block rounded-md px-2 py-1.5 hover:bg-zinc-100 dark:hover:bg-zinc-800',
-								active && 'bg-zinc-100 font-medium dark:bg-zinc-800',
-							]}
-						>
+						<a href={item.href} aria-current={active ? 'page' : undefined} class="nav-link">
+							<Icon name={item.icon} class="size-[1.125rem] opacity-80" />
 							{item.label}
 						</a>
 					</li>

@@ -3,78 +3,126 @@ export const prerender = false;
 
 import App from '../../layouts/App.astro';
 import Card from '../../components/Card.astro';
-import Empty from '../../components/Empty.astro';
+import Icon from '../../components/Icon.astro';
+import Callout from '../../components/Callout.astro';
 
 const session = Astro.locals.session;
+const handle = session?.handle ?? 'there';
+
+const steps = [
+	{ id: 'personas', title: 'Create a persona', body: 'A named bundle of fields with sensitivity tiers.', href: '/app/personas' },
+	{ id: 'clients', title: 'Register an API client', body: 'The requester that will ask for your data.', href: '/app/clients' },
+	{ id: 'rules', title: 'Write a disclosure rule', body: 'Which persona that client may see, for which purpose.', href: '/app/policies' },
+	{ id: 'decisions', title: 'Run the Explorer', body: 'Call the API as that client and watch the decision.', href: '/app/explorer' },
+];
 ---
 
-<App title="Overview" intro={`Signed in as @${session?.handle ?? '…'}. Everything below is loaded from /api/v1 on your behalf.`}>
-	<div class="grid gap-4 sm:grid-cols-3">
-		<Card title="Personas">
-			<p id="count-personas" class="text-3xl font-semibold">…</p>
-			<a href="/app/personas" class="link mt-2 inline-block text-sm">Manage personas →</a>
-		</Card>
-		<Card title="API clients">
-			<p id="count-clients" class="text-3xl font-semibold">…</p>
-			<a href="/app/clients" class="link mt-2 inline-block text-sm">Manage clients →</a>
-		</Card>
-		<Card title="Policies">
-			<p id="count-rules" class="text-3xl font-semibold">…</p>
-			<a href="/app/policies" class="link mt-2 inline-block text-sm">Manage rules →</a>
-		</Card>
+<App title={`Hello, @${handle}`} intro="Your personas, API clients and rules at a glance. Everything here is loaded from the API on your behalf." docs="dashboard/personas">
+	<Card title="Getting started" icon="sparkle">
+		<ol id="steps" class="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+			{
+				steps.map((s, i) => (
+					<li data-step={s.id} class="flex gap-3 rounded-lg border border-line p-3">
+						<span
+							data-step-mark
+							class="grid size-6 shrink-0 place-items-center rounded-full border border-line-2 text-xs font-semibold text-ink-3"
+						>
+							{i + 1}
+						</span>
+						<div class="min-w-0">
+							<a href={s.href} class="font-medium hover:underline">
+								{s.title}
+							</a>
+							<p class="mt-0.5 text-xs text-ink-2">{s.body}</p>
+						</div>
+					</li>
+				))
+			}
+		</ol>
+	</Card>
+
+	<div class="mt-6 grid gap-4 sm:grid-cols-3">
+		<a href="/app/personas" class="card flex items-center gap-4 hover:border-line-2">
+			<span class="grid size-10 place-items-center rounded-lg bg-brand-50 text-brand-700 dark:bg-brand-900/50 dark:text-brand-200"><Icon name="persona" class="size-5" /></span>
+			<div><p id="count-personas" class="text-2xl font-semibold"><span class="skeleton inline-block h-6 w-8 align-middle"></span></p><p class="text-sm text-ink-2">Personas</p></div>
+		</a>
+		<a href="/app/clients" class="card flex items-center gap-4 hover:border-line-2">
+			<span class="grid size-10 place-items-center rounded-lg bg-brand-50 text-brand-700 dark:bg-brand-900/50 dark:text-brand-200"><Icon name="key" class="size-5" /></span>
+			<div><p id="count-clients" class="text-2xl font-semibold"><span class="skeleton inline-block h-6 w-8 align-middle"></span></p><p class="text-sm text-ink-2">API clients</p></div>
+		</a>
+		<a href="/app/policies" class="card flex items-center gap-4 hover:border-line-2">
+			<span class="grid size-10 place-items-center rounded-lg bg-brand-50 text-brand-700 dark:bg-brand-900/50 dark:text-brand-200"><Icon name="shield" class="size-5" /></span>
+			<div><p id="count-rules" class="text-2xl font-semibold"><span class="skeleton inline-block h-6 w-8 align-middle"></span></p><p class="text-sm text-ink-2">Rules</p></div>
+		</a>
 	</div>
 
-	<Card title="Recent decisions" class="mt-6">
-		<div id="recent"><Empty message="Loading…" /></div>
-		<a href="/app/audit" class="link mt-3 inline-block text-sm">Full audit log →</a>
+	<Card title="Recent decisions" icon="list" class="mt-6">
+		<a slot="aside" href="/app/audit" class="ml-auto text-xs font-medium text-accent hover:underline">Full audit log →</a>
+		<div id="recent"></div>
 	</Card>
 
-	<Card title="Try it" class="mt-6">
-		<p class="text-sm text-zinc-600 dark:text-zinc-400">
-			Register an API client, write a rule, then use the <a href="/app/explorer" class="link">Explorer</a> to call
-			<code class="font-mono">/v1/disclose</code> as that client for every purpose at once.
-		</p>
-	</Card>
+	<Callout kind="tip" title="Deny by default" class="mt-6">
+		Nothing about you is disclosed until a rule says so. Every request — allowed or denied — lands in your audit log with the
+		exact keys released.
+	</Callout>
 </App>
 
 <script>
 	import { api } from '../../lib/api';
-	import { errorMessage, fmtTime, h, must } from '../../lib/ui';
+	import { emptyState, errorMessage, fmtAgo, h, must, skeleton } from '../../lib/ui';
 
 	const set = (id: string, value: string) => {
 		must<HTMLElement>(`#${id}`).textContent = value;
 	};
 	const recent = must<HTMLElement>('#recent');
+	recent.replaceChildren(skeleton(4));
+
+	function markDone(step: string, done: boolean): void {
+		const li = document.querySelector<HTMLElement>(`[data-step="${step}"]`);
+		const mark = li?.querySelector<HTMLElement>('[data-step-mark]');
+		if (!li || !mark || !done) return;
+		li.classList.add('border-ok/40', 'bg-ok-bg/40');
+		// `text-canvas`, not `text-white`: --color-ok is a dark green in light mode and a
+		// light green in dark, so the tick has to flip with it.
+		mark.className = 'grid size-6 shrink-0 place-items-center rounded-full bg-ok text-canvas';
+		mark.textContent = '✓';
+		mark.setAttribute('aria-label', 'done');
+	}
 
 	const [personas, clients, rules, audit] = await Promise.allSettled([
 		api.personas.list(),
 		api.requesters.list(),
 		api.rules.list(),
-		api.audit.list({ limit: 5 }),
+		api.audit.list({ limit: 6 }),
 	]);
 
-	set('count-personas', personas.status === 'fulfilled' ? String(personas.value.length) : '–');
-	set('count-clients', clients.status === 'fulfilled' ? String(clients.value.length) : '–');
-	set('count-rules', rules.status === 'fulfilled' ? String(rules.value.length) : '–');
+	const n = (r: PromiseSettledResult<unknown[]>) => (r.status === 'fulfilled' ? r.value.length : 0);
+	set('count-personas', personas.status === 'fulfilled' ? String(n(personas)) : '–');
+	set('count-clients', clients.status === 'fulfilled' ? String(n(clients)) : '–');
+	set('count-rules', rules.status === 'fulfilled' ? String(n(rules)) : '–');
+	markDone('personas', n(personas) > 0);
+	markDone('clients', n(clients) > 0);
+	markDone('rules', n(rules) > 0);
+	markDone('decisions', audit.status === 'fulfilled' && audit.value.events.length > 0);
 
 	if (audit.status !== 'fulfilled') {
-		recent.replaceChildren(h('p', { class: 'text-sm text-rose-600' }, `Could not load the audit log: ${errorMessage(audit.reason)}`));
+		recent.replaceChildren(h('p', { class: 'text-sm text-danger' }, `Could not load the audit log: ${errorMessage(audit.reason)}`));
 	} else if (!audit.value.events.length) {
-		recent.replaceChildren(h('p', { class: 'text-sm text-zinc-500' }, 'No disclosure decisions yet.'));
+		recent.replaceChildren(emptyState('No disclosure decisions yet. Run the Explorer to make your first one.', { label: 'Open the Explorer', href: '/app/explorer' }));
 	} else {
 		recent.replaceChildren(
 			h(
 				'ul',
-				{ class: 'divide-y divide-zinc-200 text-sm dark:divide-zinc-800' },
+				{ class: 'divide-y divide-line text-sm' },
 				...audit.value.events.map((e) =>
 					h(
 						'li',
-						{ class: 'flex flex-wrap items-center gap-x-3 gap-y-1 py-2' },
+						{ class: 'flex flex-wrap items-center gap-x-3 gap-y-1 py-2.5' },
 						h('span', { class: `pill ${e.decision === 'allow' ? 'pill-ok' : 'pill-warn'}` }, e.decision),
 						h('span', { class: 'font-mono text-xs' }, e.purpose),
-						h('span', { class: 'text-zinc-500' }, e.requester_name ?? e.requester_id ?? 'unknown requester'),
-						e.persona ? h('span', {}, `→ ${e.persona}`) : null,
-						h('span', { class: 'ml-auto text-xs text-zinc-500' }, fmtTime(e.at)),
+						h('span', { class: 'text-ink-2' }, e.requester_name ?? e.requester_id ?? 'unknown requester'),
+						e.persona ? h('span', { class: 'text-ink-2' }, `→ ${e.persona}`) : null,
+						h('span', { class: 'ml-auto text-xs text-ink-3', title: e.at }, fmtAgo(e.at)),
 					),
 				),
 			),

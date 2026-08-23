@@ -1,14 +1,21 @@
 ---
 /** Public-page header. Swaps "Sign in" for "Dashboard" when the (cosmetic) state cookie is present. */
+import Icon from './Icon.astro';
+import ThemeToggle from './ThemeToggle.astro';
 ---
 
-<header class="border-b border-zinc-200 dark:border-zinc-800">
-	<div class="mx-auto flex h-14 max-w-5xl items-center justify-between px-6">
-		<a href="/" class="text-lg font-semibold tracking-tight">Afixo</a>
-		<nav class="flex items-center gap-5 text-sm" aria-label="Site">
-			<a href="https://docs.afixo.io/" class="hover:underline">Docs</a>
-			<a href="/login" data-auth="out" class="btn btn-primary">Sign in</a>
-			<a href="/app" data-auth="in" hidden class="btn btn-primary">Dashboard</a>
+<header class="sticky top-0 z-20 border-b border-line/80 bg-canvas/80 backdrop-blur">
+	<div class="mx-auto flex h-14 max-w-6xl items-center justify-between px-4 sm:px-6">
+		<a href="/" class="flex items-center gap-2.5 text-lg font-semibold tracking-tight">
+			<span class="grid size-8 place-items-center rounded-lg bg-brand-600 text-sm font-bold text-white shadow-sm">A</span>
+			Afixo
+		</a>
+		<nav class="flex items-center gap-1 sm:gap-3" aria-label="Site">
+			<a href="https://docs.afixo.io/" class="btn btn-ghost btn-sm">Docs</a>
+			<a href="https://mcp.afixo.io/" class="btn btn-ghost btn-sm hidden sm:inline-flex">MCP</a>
+			<ThemeToggle />
+			<a href="/login" data-auth="out" class="btn btn-primary btn-sm"><Icon name="github" class="size-4" /> Sign in</a>
+			<a href="/app" data-auth="in" hidden class="btn btn-primary btn-sm">Dashboard <Icon name="arrow" class="size-4" /></a>
 		</nav>
 	</div>
 </header>

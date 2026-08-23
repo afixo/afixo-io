@@ -3,6 +3,8 @@ export const prerender = false;
 
 import App from '../../layouts/App.astro';
 import Card from '../../components/Card.astro';
+import Callout from '../../components/Callout.astro';
+import Field from '../../components/Field.astro';
 import Empty from '../../components/Empty.astro';
 
 const handle = Astro.locals.session?.handle ?? '';
@@ -10,26 +12,35 @@ const handle = Astro.locals.session?.handle ?? '';
 
 <App
 	title="Explorer"
-	intro="Act as one of your API clients: fetch a requester token from the machine API, then call the disclosure endpoint once per purpose and compare the answers side by side."
+	intro="Act as one of your API clients: fetch a token from the machine API, then call the disclosure endpoint once per purpose and compare the answers side by side."
+	docs="dashboard/explorer"
 >
-	<Card title="Request">
-		<form id="explorer" class="flex flex-wrap items-end gap-2">
-			<label class="block text-sm">
-				<span class="mb-1 block text-zinc-500">Act as client</span>
+	<Callout kind="tip" title="This is a real call, not a simulation">
+		Your browser authenticates with a stored client secret and calls the public machine API exactly as an integrator's
+		server would. Every answer below is a genuine decision, and each one is written to your{' '}
+		<a href="/app/audit" class="link">audit log</a>.
+	</Callout>
+
+	<Card title="Request" icon="compass" class="mt-6">
+		<form id="explorer" class="flex flex-wrap items-end gap-3">
+			<Field
+				for="x-client"
+				label="Act as client"
+				tip="The registered client to authenticate as. Only clients whose secret is saved in this browser can be used."
+			>
 				<select id="x-client" class="input min-w-56"></select>
-			</label>
-			<label class="block text-sm">
-				<span class="mb-1 block text-zinc-500">Subject handle</span>
-				<input id="x-handle" required value={handle} placeholder="alice" class="input" />
-			</label>
+			</Field>
+			<Field for="x-handle" label="Subject handle" tip="Whose identity to ask for. Yours is filled in, but any handle works — the rules decide.">
+				<input id="x-handle" required value={handle} placeholder="alice" class="input" autocomplete="off" />
+			</Field>
 			<button id="x-run" class="btn btn-primary">Disclose for every purpose</button>
 		</form>
-		<p class="mt-3 text-xs text-zinc-500">
-			Machine API: <code id="x-base" class="font-mono"></code> — <code class="font-mono">POST /oauth/token</code>, then
-			<code class="font-mono">GET /v1/disclose/:handle?purpose=…</code> with the bearer token. Your browser is the requester here, exactly as an
-			integrator's server would be.
+		<p class="help mt-3">
+			Machine API <code id="x-base" class="font-mono"></code> — <code class="font-mono">POST /oauth/token</code>, then <code
+				class="font-mono">GET /v1/disclose/:handle?purpose=…</code
+			> with the bearer token.
 		</p>
-		<p id="x-status" class="mt-2 text-sm text-zinc-500"></p>
+		<p id="x-status" class="mt-2 text-sm text-ink-3"></p>
 	</Card>
 
 	<div id="results" class="mt-6 grid gap-4 md:grid-cols-2 xl:grid-cols-3">
@@ -83,17 +94,19 @@ const handle = Astro.locals.session?.handle ?? '';
 					'dl',
 					{ class: 'mt-1 grid grid-cols-[auto_1fr] gap-x-3 gap-y-0.5' },
 					...Object.entries(allow.fields ?? {}).flatMap(([k, v]) => [
-						h('dt', { class: 'font-mono text-xs text-zinc-500' }, k),
+						h('dt', { class: 'font-mono text-xs text-ink-3' }, k),
 						h('dd', { class: 'break-all' }, typeof v === 'string' ? v : JSON.stringify(v)),
 					]),
 				),
-				allow.withheld?.length ? h('p', { class: 'mt-1 text-zinc-500' }, `withheld: ${allow.withheld.join(', ')}`) : null,
+				allow.withheld?.length
+					? h('p', { class: 'mt-2 text-xs text-ink-3' }, `withheld: ${allow.withheld.join(', ')}`)
+					: null,
 			);
 		} else if (deny) {
-			detail = h('p', { class: 'mt-2 text-sm text-zinc-500' }, `reason: ${deny.reason}`);
+			detail = h('p', { class: 'mt-2 text-sm text-ink-2' }, 'reason: ', h('span', { class: 'pill pill-muted' }, String(deny.reason)));
 		} else {
 			const message = r.error ?? (body && 'message' in body && body.message) ?? (body && 'error' in body ? body.error : JSON.stringify(body));
-			detail = h('p', { class: 'mt-2 text-sm text-rose-600' }, String(message ?? 'empty response'));
+			detail = h('p', { class: 'mt-2 text-sm text-danger' }, String(message ?? 'empty response'));
 		}
 
 		return h(
@@ -109,9 +122,24 @@ const handle = Astro.locals.session?.handle ?? '';
 			h(
 				'details',
 				{ class: 'mt-2 text-xs' },
-				h('summary', { class: 'cursor-pointer text-zinc-500' }, `raw · ${r.status || 'n/a'} · ${r.ms} ms`),
-				h('pre', { class: 'mt-1 overflow-x-auto font-mono' }, JSON.stringify(body, null, 2) ?? 'null'),
+				h('summary', { class: 'cursor-pointer text-ink-3 hover:text-ink' }, `raw · ${r.status || 'n/a'} · ${r.ms} ms`),
+				h('pre', { class: 'mt-1 overflow-x-auto rounded-lg bg-surface-2 p-2.5 font-mono' }, JSON.stringify(body, null, 2) ?? 'null'),
 			),
+		);
+	}
+
+	/** Placeholder shown for each purpose while its request is in flight. */
+	function pendingCard(purpose: string): HTMLElement {
+		return h(
+			'section',
+			{ class: 'card', 'aria-busy': 'true' },
+			h(
+				'header',
+				{ class: 'flex items-center justify-between gap-2' },
+				h('h3', { class: 'font-mono text-sm' }, purpose),
+				h('span', { class: 'pill pill-muted' }, 'asking…'),
+			),
+			h('div', { class: 'mt-3 flex flex-col gap-2' }, h('div', { class: 'skeleton h-3.5 w-5/6' }), h('div', { class: 'skeleton h-3.5 w-2/3' })),
 		);
 	}
 
@@ -126,6 +154,7 @@ const handle = Astro.locals.session?.handle ?? '';
 			const token = await tokenFor(client);
 			const purposes = await machinePurposes();
 			status(note, `Calling /v1/disclose/${handle} for ${purposes.length} purposes…`);
+			results.replaceChildren(...purposes.map(pendingCard));
 			const out = await discloseAll(token, handle, purposes);
 			results.replaceChildren(...out.map(resultCard));
 			const allowed = out.filter((r) => r.ok).length;

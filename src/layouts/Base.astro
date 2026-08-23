@@ -6,8 +6,10 @@ interface Props {
 	description?: string;
 }
 
-const { title, description = 'Afixo — developer identity infrastructure: context-specific personas, purpose-aware disclosure at the API boundary.' } =
-	Astro.props;
+const {
+	title,
+	description = 'Afixo — developer identity infrastructure: context-specific personas, purpose-aware disclosure at the API boundary.',
+} = Astro.props;
 ---
 
 <!doctype html>
@@ -19,8 +21,20 @@ const { title, description = 'Afixo — developer identity infrastructure: conte
 		<meta name="description" content={description} />
 		<link rel="icon" type="image/svg+xml" href="/favicon.svg" />
 		<title>{title} · Afixo</title>
+		{/* Applies the saved theme before first paint. External on purpose: the CSP has no inline scripts. */}
+		<script is:inline src="/theme.js"></script>
 	</head>
 	<body class="min-h-full">
+		<a
+			href="#main"
+			class="sr-only focus:not-sr-only focus:fixed focus:top-3 focus:left-3 focus:z-50 focus:rounded-lg focus:bg-surface focus:px-3 focus:py-2 focus:text-sm focus:shadow-pop"
+			>Skip to content</a
+		>
 		<slot />
 	</body>
 </html>
+
+<script>
+	import { initTips } from '../lib/tips';
+	initTips();
+</script>

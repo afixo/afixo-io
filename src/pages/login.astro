@@ -1,26 +1,40 @@
 ---
 /**
  * Prerendered. The sign-in link is a plain anchor (not a form) on purpose:
- * afixo-api answers it with a 302 to GitHub, and `form-action 'self'` in the CSP
- * would block that redirect for a form post. `?error=<code>` comes from afixo-api
- * when the callback fails (DESIGN.md §4).
+ * afixo-api answers it with a redirect to GitHub, and `form-action 'self'` in
+ * the CSP would block that redirect for a form post. `?error=<code>` comes
+ * from afixo-api when the callback fails.
  */
 import Base from '../layouts/Base.astro';
 import SiteHeader from '../components/SiteHeader.astro';
+import Icon from '../components/Icon.astro';
 ---
 
 <Base title="Sign in">
 	<SiteHeader />
-	<main class="mx-auto max-w-md px-6 py-16">
-		<h1 class="text-2xl font-semibold tracking-tight">Sign in</h1>
-		<p class="mt-2 text-sm text-zinc-600 dark:text-zinc-400">
-			Subjects sign in with GitHub. You will be sent to GitHub and straight back to your dashboard.
-		</p>
-		<p id="login-error" hidden class="mt-4 rounded-md border border-rose-300 bg-rose-50 p-3 text-sm text-rose-800 dark:border-rose-900 dark:bg-rose-950 dark:text-rose-300"></p>
-		<a href="/api/v1/auth/github/login" class="btn btn-primary mt-6">Continue with GitHub</a>
-		<p id="already" hidden class="mt-4 text-sm text-zinc-500">
-			You appear to be signed in already — <a href="/app" class="link">open the dashboard</a>.
-		</p>
+	<main id="main" class="hero-bg flex min-h-[calc(100vh-3.5rem)] items-start justify-center px-4 py-16 sm:px-6">
+		<div class="card w-full max-w-md p-8">
+			<span class="grid size-10 place-items-center rounded-xl bg-brand-600 text-base font-bold text-white shadow-sm">A</span>
+			<h1 class="mt-5 text-2xl font-semibold tracking-tight">Sign in to Afixo</h1>
+			<p class="mt-2 text-sm text-ink-2">
+				Use your GitHub account. We only read your public profile (<code class="font-mono text-xs">read:user</code>) to
+				create your handle — nothing else, ever.
+			</p>
+			<div id="login-error" hidden class="callout callout-danger mt-5" role="alert">
+				<Icon name="warning" class="mt-0.5 size-4 text-danger" />
+				<p id="login-error-text"></p>
+			</div>
+			<a href="/api/v1/auth/github/login" class="btn btn-primary mt-6 w-full">
+				<Icon name="github" class="size-4" /> Continue with GitHub
+			</a>
+			<p id="already" hidden class="mt-4 text-sm text-ink-2">
+				You appear to be signed in already — <a href="/app" class="link">open the dashboard</a>.
+			</p>
+			<p class="mt-6 text-xs text-ink-3">
+				By signing in you get a personal space for personas, API clients and disclosure rules. Nothing is shared until you
+				write a rule.
+			</p>
+		</div>
 	</main>
 </Base>
 
@@ -38,9 +52,8 @@ import SiteHeader from '../components/SiteHeader.astro';
 
 	const code = new URLSearchParams(window.location.search).get('error');
 	if (code) {
-		const el = document.getElementById('login-error')!;
-		el.textContent = MESSAGES[code] ?? `Sign-in failed (${code}).`;
-		el.hidden = false;
+		document.getElementById('login-error-text')!.textContent = MESSAGES[code] ?? `Sign-in failed (${code}).`;
+		document.getElementById('login-error')!.hidden = false;
 	}
 	if (stateFromDocument()) document.getElementById('already')!.hidden = false;
 </script>

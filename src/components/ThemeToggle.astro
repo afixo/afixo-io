@@ -1,0 +1,52 @@
+---
+/**
+ * System → Light → Dark → System. State lives in public/theme.js
+ * (window.afixoTheme); every toggle on the page follows the `afixo:theme` event.
+ */
+import Icon from './Icon.astro';
+
+interface Props {
+	class?: string;
+}
+const { class: className } = Astro.props;
+---
+
+<span class:list={['tip tip-right', className]}>
+	<button type="button" class="btn btn-ghost btn-icon" data-theme-toggle aria-label="Theme: system" aria-describedby="theme-tip">
+		<Icon name="monitor" class="size-5" data-mode="system" />
+		<Icon name="sun" class="size-5" data-mode="light" />
+		<Icon name="moon" class="size-5" data-mode="dark" />
+	</button>
+	<span role="tooltip" id="theme-tip" class="tip-bubble">Switch between system, light and dark theme.</span>
+</span>
+
+<script>
+	type Mode = 'system' | 'light' | 'dark';
+	const ORDER: Mode[] = ['system', 'light', 'dark'];
+	const LABEL: Record<Mode, string> = { system: 'system', light: 'light', dark: 'dark' };
+
+	declare global {
+		interface Window {
+			afixoTheme?: { get(): Mode; effective(): 'light' | 'dark'; set(mode: Mode): void };
+		}
+	}
+
+	// Which icon shows is pure CSS, keyed on <html data-theme-mode> (global.css);
+	// the script only keeps the accessible name current.
+	function paint(button: HTMLButtonElement, mode: Mode): void {
+		button.setAttribute('aria-label', `Theme: ${LABEL[mode]} (click to change)`);
+	}
+
+	const buttons = [...document.querySelectorAll<HTMLButtonElement>('[data-theme-toggle]')];
+	const current = (): Mode => window.afixoTheme?.get() ?? 'system';
+	for (const b of buttons) {
+		paint(b, current());
+		b.addEventListener('click', () => {
+			const next = ORDER[(ORDER.indexOf(current()) + 1) % ORDER.length]!;
+			window.afixoTheme?.set(next);
+		});
+	}
+	window.addEventListener('afixo:theme', () => {
+		for (const b of buttons) paint(b, current());
+	});
+</script>

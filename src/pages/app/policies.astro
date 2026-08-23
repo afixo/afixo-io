@@ -3,61 +3,95 @@ export const prerender = false;
 
 import App from '../../layouts/App.astro';
 import Card from '../../components/Card.astro';
-import Empty from '../../components/Empty.astro';
+import Callout from '../../components/Callout.astro';
+import Field from '../../components/Field.astro';
 import { PURPOSES, SENSITIVITIES, SENSITIVITY_LABEL } from '../../lib/api';
 ---
 
 <App
 	title="Policies"
-	intro="Rules only ever grant. A request is denied unless a rule matches its (requester, purpose); the most specific rule wins, then priority, then the newest. Adding a rule can never restrict another."
+	intro="Rules decide what a client sees. Each rule grants one persona to a (client, purpose) pair, capped by a sensitivity ceiling and, optionally, an allow-list."
+	docs="dashboard/policies"
 >
-	<Card title="New rule">
-		<form id="rule-form" class="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-			<label class="block text-sm">
-				<span class="mb-1 block text-zinc-500">Requester</span>
-				<select id="f-requester" name="requester_id" class="input w-full"><option value="">any requester</option></select>
-			</label>
-			<label class="block text-sm">
-				<span class="mb-1 block text-zinc-500">Purpose</span>
+	<Callout kind="info" title="How a request is decided">
+		<ol class="mt-1 list-decimal space-y-0.5 pl-4">
+			<li>Collect the rules that match the caller and the purpose — wildcards (“any”) count.</li>
+			<li>
+				The most <em>specific</em> rule wins: client + purpose beats client only, beats purpose only, beats “any / any”.
+				Ties go to the higher priority, then the newest rule.
+			</li>
+			<li>Release the persona's fields within the ceiling and on the allow-list. No rule → deny. Rules never restrict other rules.</li>
+		</ol>
+	</Callout>
+
+	<Card title="New rule" icon="shield" class="mt-6">
+		<form id="rule-form" class="grid gap-x-4 gap-y-3 sm:grid-cols-2 lg:grid-cols-3">
+			<Field for="f-requester" label="Client" tip="Which application this rule answers. “Any client” makes it a fallback for callers no other rule covers.">
+				<select id="f-requester" name="requester_id" class="input w-full">
+					<option value="">any client</option>
+				</select>
+			</Field>
+
+			<Field for="f-purpose" label="Purpose" tip="The reason the caller states when it asks. A rule for “shipping” never answers a “billing” request.">
 				<select id="f-purpose" name="purpose" class="input w-full">
 					<option value="">any purpose</option>
 					{PURPOSES.map((p) => <option value={p}>{p}</option>)}
 				</select>
-			</label>
-			<label class="block text-sm">
-				<span class="mb-1 block text-zinc-500">Persona to disclose</span>
+			</Field>
+
+			<Field for="f-persona" label="Persona to disclose" tip="The bundle of fields this rule draws from. Only fields in this persona can ever be released by it.">
 				<select id="f-persona" name="persona_id" required class="input w-full"></select>
-			</label>
-			<label class="block text-sm">
-				<span class="mb-1 block text-zinc-500">Max sensitivity (ceiling)</span>
+			</Field>
+
+			<Field
+				for="f-sensitivity"
+				label="Max sensitivity (ceiling)"
+				tip="Fields graded above this tier are withheld, even when the allow-list names them. Start low and raise it deliberately."
+			>
 				<select id="f-sensitivity" name="max_sensitivity" class="input w-full">
 					{SENSITIVITIES.map((s) => <option value={s} selected={s === 1}>{s} · {SENSITIVITY_LABEL[s]}</option>)}
 				</select>
-			</label>
-			<label class="block text-sm">
-				<span class="mb-1 block text-zinc-500">Allow keys (optional, comma-separated)</span>
-				<input id="f-allow" name="allow_keys" placeholder="name, email" class="input w-full" />
-			</label>
-			<label class="block text-sm">
-				<span class="mb-1 block text-zinc-500">Priority (tie-breaker)</span>
-				<input id="f-priority" name="priority" type="number" value="0" step="1" class="input w-full" />
-			</label>
-			<div class="flex items-center gap-3 sm:col-span-2 lg:col-span-3">
+			</Field>
+
+			<Field
+				for="f-allow"
+				label="Allow keys"
+				tip="Optional. Comma-separated field keys; leave blank to release every field under the ceiling."
+				hint="Leave blank for every field under the ceiling."
+			>
+				<input id="f-allow" name="allow_keys" placeholder="name, email" class="input w-full" autocomplete="off" />
+			</Field>
+
+			<Field
+				for="f-priority"
+				label="Priority"
+				tip="Only breaks ties between rules of equal specificity. Higher wins; the newest rule wins if the priorities also match."
+				tipRight
+				hint="Tie-breaker between equally specific rules."
+			>
+				<input id="f-priority" name="priority" type="number" value="0" step="1" inputmode="numeric" class="input w-full" />
+			</Field>
+
+			<div class="flex flex-wrap items-center gap-3 sm:col-span-2 lg:col-span-3">
 				<button class="btn btn-primary">Create rule</button>
 				<span id="rule-status" class="text-sm"></span>
 			</div>
 		</form>
-		<p id="catch-all" class="mt-3 rounded-md border border-amber-300 bg-amber-50 p-3 text-sm text-amber-900 dark:border-amber-800 dark:bg-amber-950 dark:text-amber-200">
-			This is a catch-all: with no requester and no purpose it applies to every caller and every purpose that no more specific rule covers.
-		</p>
-		<div class="mt-4">
-			<h3 class="text-xs font-semibold tracking-wide text-zinc-500 uppercase">Live preview</h3>
-			<div id="preview" class="mt-2 grid gap-4 sm:grid-cols-2"><Empty message="Pick a persona to preview what this rule discloses." /></div>
+
+		<Callout kind="warn" id="catch-all" title="This is a catch-all" class="mt-4" hidden>
+			With no client and no purpose it applies to every caller and every purpose that no more specific rule covers.
+		</Callout>
+
+		<div class="mt-5 border-t border-line pt-4">
+			<h3 class="card-kicker mb-2 flex items-center gap-1.5">
+				Live preview
+			</h3>
+			<div id="preview" class="grid gap-4 sm:grid-cols-2"></div>
 		</div>
 	</Card>
 
-	<Card title="Rules in force" class="mt-6">
-		<div id="rules"><Empty message="Loading rules…" /></div>
+	<Card title="Rules in force" icon="list" class="mt-6">
+		<div id="rules"></div>
 	</Card>
 </App>
 
@@ -75,7 +109,8 @@ import { PURPOSES, SENSITIVITIES, SENSITIVITY_LABEL } from '../../lib/api';
 		type Requester,
 		type Rule,
 	} from '../../lib/api';
-	import { badge, emptyState, errorMessage, h, must, status, td } from '../../lib/ui';
+	import { confirmDialog } from '../../lib/dialog';
+	import { badge, emptyState, errorMessage, h, must, skeleton, status, td, tip } from '../../lib/ui';
 
 	const form = must<HTMLFormElement>('#rule-form');
 	const formStatus = must<HTMLElement>('#rule-status');
@@ -92,7 +127,13 @@ import { PURPOSES, SENSITIVITIES, SENSITIVITY_LABEL } from '../../lib/api';
 	let personas: Persona[] = [];
 	let requesters: Requester[] = [];
 
-	function fillSelect(sel: HTMLSelectElement, options: { value: string; label: string }[], first?: { value: string; label: string }): void {
+	rulesBox.replaceChildren(skeleton(4));
+
+	function fillSelect(
+		sel: HTMLSelectElement,
+		options: { value: string; label: string }[],
+		first?: { value: string; label: string },
+	): void {
 		const previous = sel.value;
 		const all = first ? [first, ...options] : options;
 		sel.replaceChildren(...all.map((o) => h('option', { value: o.value }, o.label)));
@@ -103,10 +144,25 @@ import { PURPOSES, SENSITIVITIES, SENSITIVITY_LABEL } from '../../lib/api';
 		return h(
 			'div',
 			{},
-			h('h4', { class: `mb-1 text-xs font-semibold tracking-wide uppercase ${tone}` }, `${title} (${fields.length})`),
+			h(
+				'h4',
+				{ class: `mb-1.5 text-xs font-semibold tracking-wider uppercase ${tone}` },
+				`${title} · ${fields.length}`,
+			),
 			fields.length
-				? h('ul', { class: 'space-y-1' }, ...fields.map((f) => h('li', { class: 'flex items-center gap-2 text-sm' }, h('code', { class: 'font-mono text-xs' }, f.key), badge(f.sensitivity))))
-				: h('p', { class: 'text-sm text-zinc-500' }, 'nothing'),
+				? h(
+						'ul',
+						{ class: 'flex flex-col gap-1' },
+						...fields.map((f) =>
+							h(
+								'li',
+								{ class: 'flex flex-wrap items-center gap-2 text-sm' },
+								h('code', { class: 'font-mono text-xs' }, f.key),
+								badge(f.sensitivity),
+							),
+						),
+					)
+				: h('p', { class: 'text-sm text-ink-3' }, 'nothing'),
 		);
 	}
 
@@ -114,18 +170,25 @@ import { PURPOSES, SENSITIVITIES, SENSITIVITY_LABEL } from '../../lib/api';
 		catchAll.hidden = !(requesterSel.value === '' && purposeSel.value === '');
 		const persona = personas.find((p) => p.id === personaSel.value);
 		if (!persona) {
-			preview.replaceChildren(emptyState(personas.length ? 'Pick a persona to preview what this rule discloses.' : 'Create a persona first — a rule must name one.'));
+			preview.replaceChildren(
+				personas.length
+					? emptyState('Pick a persona to preview what this rule discloses.')
+					: emptyState('Create a persona first — a rule must name one.', { label: 'Go to Personas', href: '/app/personas' }),
+			);
 			return;
 		}
-		const { disclosed, withheld } = previewDisclosure(persona.fields, toSensitivity(sensSel.value), parseAllowKeys(allowInput.value));
-		preview.replaceChildren(
-			fieldList('Disclosed', disclosed, 'text-emerald-600 dark:text-emerald-400'),
-			fieldList('Withheld', withheld, 'text-rose-600 dark:text-rose-400'),
+		const { disclosed, withheld } = previewDisclosure(
+			persona.fields,
+			toSensitivity(sensSel.value),
+			parseAllowKeys(allowInput.value),
 		);
+		preview.replaceChildren(fieldList('Disclosed', disclosed, 'text-ok'), fieldList('Withheld', withheld, 'text-danger'));
 	}
 
 	function ruleRow(rule: Rule): HTMLTableRowElement {
-		const requester = rule.requester_id ? (requesters.find((r) => r.id === rule.requester_id)?.name ?? rule.requester_id) : 'any requester';
+		const requester = rule.requester_id
+			? (requesters.find((r) => r.id === rule.requester_id)?.name ?? rule.requester_id)
+			: 'any client';
 		const persona = personas.find((p) => p.id === rule.persona_id);
 		const disclosed = persona ? previewDisclosure(persona.fields, rule.max_sensitivity, rule.allow_keys).disclosed : [];
 		const remove = h(
@@ -133,8 +196,15 @@ import { PURPOSES, SENSITIVITIES, SENSITIVITY_LABEL } from '../../lib/api';
 			{
 				type: 'button',
 				class: 'btn btn-sm btn-danger',
+				'aria-label': `Delete the rule for ${requester} / ${rule.purpose ?? 'any purpose'}`,
 				onclick: async () => {
-					if (!confirm('Delete this rule? Requests it currently allows will be denied unless another rule covers them.')) return;
+					const ok = await confirmDialog({
+						title: 'Delete this rule?',
+						body: 'Requests it currently allows will be denied unless another rule covers them.',
+						confirmLabel: 'Delete rule',
+						danger: true,
+					});
+					if (!ok) return;
 					try {
 						await api.rules.remove(rule.id);
 						await load();
@@ -148,25 +218,52 @@ import { PURPOSES, SENSITIVITIES, SENSITIVITY_LABEL } from '../../lib/api';
 		return h(
 			'tr',
 			{},
-			td(requester),
-			td(h('code', { class: 'font-mono text-xs' }, rule.purpose ?? 'any purpose')),
-			td(persona ? persona.name : h('span', { class: 'text-rose-600' }, 'missing persona')),
+			td(h('span', { class: rule.requester_id ? 'font-medium' : 'text-ink-3' }, requester)),
+			td(
+				rule.purpose
+					? h('code', { class: 'font-mono text-xs' }, rule.purpose)
+					: h('span', { class: 'text-ink-3' }, 'any purpose'),
+			),
+			td(persona ? persona.name : h('span', { class: 'text-danger' }, 'missing persona')),
 			td(badge(rule.max_sensitivity)),
-			td(rule.allow_keys?.length ? h('code', { class: 'font-mono text-xs' }, rule.allow_keys.join(', ')) : h('span', { class: 'text-zinc-500' }, 'all keys')),
-			td(String(rule.priority)),
-			td(String(specificity(rule))),
-			td(disclosed.length ? h('code', { class: 'font-mono text-xs' }, disclosed.map((f) => f.key).join(', ')) : h('span', { class: 'text-zinc-500' }, '—')),
+			td(
+				rule.allow_keys?.length
+					? h('code', { class: 'font-mono text-xs' }, rule.allow_keys.join(', '))
+					: h('span', { class: 'text-ink-3' }, 'all keys'),
+			),
+			td(h('span', { class: 'tabular-nums' }, String(rule.priority))),
+			td(h('span', { class: 'tabular-nums' }, String(specificity(rule)))),
+			td(
+				disclosed.length
+					? h('code', { class: 'font-mono text-xs' }, disclosed.map((f) => f.key).join(', '))
+					: h('span', { class: 'text-ink-3' }, '—'),
+			),
 			h('td', { class: 'text-right' }, remove),
 		);
 	}
 
+	function th(label: string, help?: string): HTMLTableCellElement {
+		const cell = h('th', { scope: 'col' });
+		cell.append(
+			help
+				? h('span', { class: 'inline-flex items-center gap-1' }, label, tip(`the ${label.toLowerCase()} column`, help, true))
+				: label,
+		);
+		return cell;
+	}
+
 	function renderRules(rules: Rule[]): void {
 		if (!rules.length) {
-			rulesBox.replaceChildren(emptyState('No rules yet — every disclosure request is currently denied.'));
+			rulesBox.replaceChildren(
+				emptyState('No rules yet — every disclosure request is currently denied. Add the first rule above.'),
+			);
 			return;
 		}
 		const ordered = [...rules].sort(
-			(a, b) => specificity(b) - specificity(a) || b.priority - a.priority || (b.created_at ?? '').localeCompare(a.created_at ?? ''),
+			(a, b) =>
+				specificity(b) - specificity(a) ||
+				b.priority - a.priority ||
+				(b.created_at ?? '').localeCompare(a.created_at ?? ''),
 		);
 		rulesBox.replaceChildren(
 			h(
@@ -175,21 +272,22 @@ import { PURPOSES, SENSITIVITIES, SENSITIVITY_LABEL } from '../../lib/api';
 				h(
 					'table',
 					{ class: 'table' },
+					h('caption', { class: 'sr-only' }, 'Rules in force, most specific first'),
 					h(
 						'thead',
 						{},
 						h(
 							'tr',
 							{},
-							h('th', {}, 'Requester'),
-							h('th', {}, 'Purpose'),
-							h('th', {}, 'Persona'),
-							h('th', {}, 'Ceiling'),
-							h('th', {}, 'Allow keys'),
-							h('th', {}, 'Priority'),
-							h('th', {}, 'Specificity'),
-							h('th', {}, 'Would disclose'),
-							h('th'),
+							th('Client'),
+							th('Purpose'),
+							th('Persona'),
+							th('Ceiling', 'The highest sensitivity tier this rule releases. Anything above it is withheld.'),
+							th('Allow keys'),
+							th('Priority', 'Breaks ties between rules that are equally specific. Higher wins.'),
+							th('Specificity', 'Client + purpose = 3, client only = 2, purpose only = 1, any/any = 0. Highest wins.'),
+							th('Would disclose', 'The fields this rule releases today, given the persona it names.'),
+							h('th', { scope: 'col' }, h('span', { class: 'sr-only' }, 'Actions')),
 						),
 					),
 					h('tbody', {}, ...ordered.map(ruleRow)),
@@ -203,12 +301,19 @@ import { PURPOSES, SENSITIVITIES, SENSITIVITY_LABEL } from '../../lib/api';
 			const [p, r, rules] = await Promise.all([api.personas.list(), api.requesters.list(), api.rules.list()]);
 			personas = p;
 			requesters = r;
-			fillSelect(requesterSel, requesters.map((x) => ({ value: x.id, label: x.name })), { value: '', label: 'any requester' });
-			fillSelect(personaSel, personas.map((x) => ({ value: x.id, label: x.name })));
+			fillSelect(
+				requesterSel,
+				requesters.map((x) => ({ value: x.id, label: x.name })),
+				{ value: '', label: 'any client' },
+			);
+			fillSelect(
+				personaSel,
+				personas.map((x) => ({ value: x.id, label: x.name })),
+			);
 			renderPreview();
 			renderRules(rules);
 		} catch (e) {
-			rulesBox.replaceChildren(h('p', { class: 'text-sm text-rose-600' }, `Could not load policies: ${errorMessage(e)}`));
+			rulesBox.replaceChildren(h('p', { class: 'text-sm text-danger' }, `Could not load policies: ${errorMessage(e)}`));
 		}
 	}
 

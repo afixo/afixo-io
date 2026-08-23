@@ -3,40 +3,71 @@ export const prerender = false;
 
 import App from '../../layouts/App.astro';
 import Card from '../../components/Card.astro';
+import Callout from '../../components/Callout.astro';
+import Info from '../../components/Info.astro';
 ---
 
 <App
 	title="Audit"
-	intro="Every request made against your identity — allowed or denied — with the requester, the purpose, the persona returned and the exact keys released. Entries are hash-chained; verification walks the chain on the server."
+	intro="Every request made against your identity — allowed or denied — with the client, the purpose, the persona returned and the exact keys released."
+	docs="dashboard/audit"
 >
-	<Card title="Chain">
+	<Callout kind="info" title="Why the log can be trusted">
+		Each entry stores the hash of the one before it, so the log is a chain. Changing or removing an old entry would break
+		every hash after it. <strong>Verify chain</strong> asks the server to walk the whole chain and re-compute it.
+	</Callout>
+
+	<Card title="Chain" icon="lock" class="mt-6">
 		<div class="flex flex-wrap items-center gap-3">
 			<button id="verify" type="button" class="btn">Verify chain</button>
-			<span id="verify-out" class="text-sm text-zinc-500"></span>
+			<Info label="chain verification">
+				The server re-computes every hash from the first entry to the last. “Intact” means no entry has been altered or
+				removed since it was written.
+			</Info>
+			<span id="verify-out" class="text-sm text-ink-3"></span>
 		</div>
 	</Card>
 
-	<Card title="Decisions" class="mt-6">
+	<Card title="Decisions" icon="list" class="mt-6">
 		<div class="overflow-x-auto">
 			<table class="table">
+				<caption class="sr-only">Disclosure decisions, newest first</caption>
 				<thead>
-					<tr><th>When</th><th>Decision</th><th>Requester</th><th>Purpose</th><th>Persona</th><th>Disclosed keys</th><th>Withheld / reason</th></tr>
+					<tr>
+						<th scope="col">When</th>
+						<th scope="col">Decision</th>
+						<th scope="col">Client</th>
+						<th scope="col">Purpose</th>
+						<th scope="col">Persona</th>
+						<th scope="col">
+							<span class="inline-flex items-center gap-1">
+								Disclosed
+								<Info label="the disclosed column" right>The field keys that actually left the system on this request.</Info>
+							</span>
+						</th>
+						<th scope="col">
+							<span class="inline-flex items-center gap-1">
+								Withheld / reason
+								<Info label="the withheld column" right
+									>On an allow, the keys the rule held back. On a deny, why nothing was released.</Info
+								>
+							</span>
+						</th>
+					</tr>
 				</thead>
-				<tbody id="events">
-					<tr><td colspan="7" class="text-zinc-500">Loading…</td></tr>
-				</tbody>
+				<tbody id="events"></tbody>
 			</table>
 		</div>
-		<div class="mt-3 flex items-center gap-3">
+		<div class="mt-4 flex items-center gap-3">
 			<button id="more" type="button" hidden class="btn btn-sm">Load more</button>
-			<span id="audit-status" class="text-sm text-zinc-500"></span>
+			<span id="audit-status" class="text-sm text-ink-3"></span>
 		</div>
 	</Card>
 </App>
 
 <script>
 	import { api, type AuditEvent } from '../../lib/api';
-	import { errorMessage, fmtTime, h, must, status, td } from '../../lib/ui';
+	import { errorMessage, fmtAgo, fmtTime, h, must, status, td } from '../../lib/ui';
 
 	const tbody = must<HTMLElement>('#events');
 	const more = must<HTMLButtonElement>('#more');
@@ -44,30 +75,69 @@ import Card from '../../components/Card.astro';
 	const verifyButton = must<HTMLButtonElement>('#verify');
 	const verifyOut = must<HTMLElement>('#verify-out');
 
+	const COLUMNS = 7;
+
 	let cursor: string | null = null;
 	let loaded = 0;
+	/** requester id (and client_id) → display name, so the log reads in names, not ids. */
+	let clientNames = new Map<string, string>();
+
+	/** A full-width row — used for the loading, empty and error states. */
+	function wideRow(...children: (Node | string)[]): HTMLTableRowElement {
+		return h('tr', {}, h('td', { colspan: String(COLUMNS), class: 'text-sm text-ink-3' }, ...children));
+	}
+
+	function loadingRows(n = 4): HTMLTableRowElement[] {
+		return Array.from({ length: n }, (_, i) =>
+			h(
+				'tr',
+				{ 'aria-hidden': 'true' },
+				...Array.from({ length: COLUMNS }, () => td(h('div', { class: `skeleton h-3.5 ${i % 2 ? 'w-2/3' : 'w-5/6'}` }))),
+			),
+		);
+	}
+
+	function keys(list: string[] | undefined): HTMLElement | string {
+		return list?.length ? h('code', { class: 'font-mono text-xs' }, list.join(', ')) : h('span', { class: 'text-ink-3' }, '—');
+	}
+
+	function clientName(e: AuditEvent): HTMLElement | string {
+		const named = e.requester_name ?? (e.requester_id ? clientNames.get(e.requester_id) : undefined);
+		if (named) return named;
+		if (e.requester_id) return h('code', { class: 'font-mono text-xs', title: 'This client is no longer registered.' }, e.requester_id);
+		return h('span', { class: 'text-ink-3' }, 'any client');
+	}
 
 	function row(e: AuditEvent): HTMLTableRowElement {
 		return h(
 			'tr',
 			{},
-			td(h('span', { class: 'whitespace-nowrap text-zinc-500' }, fmtTime(e.at))),
+			td(h('span', { class: 'whitespace-nowrap text-ink-2', title: fmtTime(e.at) }, fmtAgo(e.at))),
 			td(h('span', { class: `pill ${e.decision === 'allow' ? 'pill-ok' : 'pill-warn'}` }, e.decision)),
-			td(e.requester_name ?? e.requester_id ?? '—'),
+			td(clientName(e)),
 			td(h('code', { class: 'font-mono text-xs' }, e.purpose)),
-			td(e.persona ?? '—'),
-			td(e.disclosed_keys?.length ? h('code', { class: 'font-mono text-xs' }, e.disclosed_keys.join(', ')) : '—'),
-			td(e.withheld_keys?.length ? h('code', { class: 'font-mono text-xs' }, e.withheld_keys.join(', ')) : (e.reason ?? '—')),
+			td(e.persona ?? h('span', { class: 'text-ink-3' }, '—')),
+			td(keys(e.disclosed_keys)),
+			td(
+				e.withheld_keys?.length
+					? keys(e.withheld_keys)
+					: e.reason
+						? h('span', { class: 'pill pill-muted' }, e.reason)
+						: h('span', { class: 'text-ink-3' }, '—'),
+			),
 		);
 	}
 
 	async function loadPage(): Promise<void> {
 		more.disabled = true;
+		if (!loaded) tbody.replaceChildren(...loadingRows());
 		try {
 			const page = await api.audit.list({ limit: 25, cursor });
 			if (!loaded) tbody.replaceChildren();
 			if (!loaded && !page.events.length) {
-				tbody.replaceChildren(h('tr', {}, h('td', { colspan: '7', class: 'text-zinc-500' }, 'No decisions recorded yet.')));
+				tbody.replaceChildren(
+					wideRow('No decisions recorded yet. Run the ', h('a', { href: '/app/explorer', class: 'link' }, 'Explorer'), ' to make one.'),
+				);
 			} else {
 				tbody.append(...page.events.map(row));
 			}
@@ -76,6 +146,7 @@ import Card from '../../components/Card.astro';
 			more.hidden = !cursor;
 			status(note, `${loaded} event${loaded === 1 ? '' : 's'} loaded${cursor ? ', more available' : ''}.`);
 		} catch (e) {
+			if (!loaded) tbody.replaceChildren(wideRow(`Could not load the audit log: ${errorMessage(e)}`));
 			status(note, errorMessage(e), 'error');
 		} finally {
 			more.disabled = false;
@@ -101,5 +172,17 @@ import Card from '../../components/Card.astro';
 	});
 
 	more.addEventListener('click', () => void loadPage());
-	loadPage();
+
+	async function init(): Promise<void> {
+		try {
+			const requesters = await api.requesters.list();
+			// The gateway records whichever identifier it holds, so index both.
+			clientNames = new Map(requesters.flatMap((r) => [[r.id, r.name] as const, [r.client_id, r.name] as const]));
+		} catch {
+			// Names are a nicety; the log still reads correctly with raw ids.
+		}
+		await loadPage();
+	}
+
+	init();
 </script>

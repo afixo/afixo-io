@@ -1,0 +1,36 @@
+---
+/**
+ * A labelled form control.
+ *
+ * The "?" tooltip is a <button>, which HTML forbids inside a <label> (a label
+ * may hold no interactive content but its own control). So the label text is a
+ * real `<label for>` and the tooltip sits beside it, not inside it.
+ *
+ * Put the control in the default slot; give it the same `id` as `for`.
+ */
+import Info from './Info.astro';
+
+interface Props {
+	/** id of the control in the slot */
+	for: string;
+	label: string;
+	/** tooltip body — plain text, so assistive tech reads it with the control */
+	tip?: string;
+	/** always-visible hint under the control */
+	hint?: string;
+	/** align the tooltip bubble to its right edge (for fields near the viewport edge) */
+	tipRight?: boolean;
+	class?: string;
+}
+
+const { for: htmlFor, label, tip, hint, tipRight = false, class: className } = Astro.props;
+---
+
+<div class:list={['field', className]}>
+	<span class="label">
+		<label for={htmlFor}>{label}</label>
+		{tip && <Info label={label.toLowerCase()} right={tipRight}>{tip}</Info>}
+	</span>
+	<slot />
+	{hint && <span class="help">{hint}</span>}
+</div>

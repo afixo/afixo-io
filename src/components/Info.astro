@@ -1,0 +1,22 @@
+---
+/**
+ * A "?" tooltip. Hover, focus or click shows the bubble; Escape and clicking
+ * elsewhere close it (src/lib/tips.ts). The bubble is the trigger's
+ * description, so screen readers read it with the control.
+ */
+interface Props {
+	/** what the tooltip is about — becomes "About <label>" for assistive tech */
+	label: string;
+	class?: string;
+	/** align the bubble to the right edge (for triggers near the viewport edge) */
+	right?: boolean;
+}
+
+const { label, class: className, right = false } = Astro.props;
+const id = `tip-${Math.random().toString(36).slice(2, 9)}`;
+---
+
+<span class:list={['tip', right && 'tip-right', className]} data-tip>
+	<button type="button" class="tip-trigger" aria-label={`About ${label}`} aria-describedby={id} aria-expanded="false">?</button>
+	<span role="tooltip" id={id} class="tip-bubble"><slot /></span>
+</span>

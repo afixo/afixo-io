@@ -1,6 +1,9 @@
 # build output
 dist/
 
+# Playwright MCP scratch output (screenshots, console logs)
+.playwright-mcp/
+
 # generated types (`worker-configuration.d.ts` at the root IS committed)
 .astro/
 

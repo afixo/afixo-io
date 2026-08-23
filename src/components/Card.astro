@@ -1,14 +1,25 @@
 ---
+import Icon, { type IconName } from './Icon.astro';
+
 interface Props {
 	title?: string;
+	icon?: IconName;
 	id?: string;
 	class?: string;
 }
 
-const { title, id, class: className } = Astro.props;
+const { title, icon, id, class: className } = Astro.props;
 ---
 
 <section id={id} class:list={['card', className]}>
-	{title && <h2 class="mb-3 text-xs font-semibold tracking-wide text-zinc-500 uppercase">{title}</h2>}
+	{
+		title && (
+			<h2 class="card-title">
+				{icon && <Icon name={icon} class="size-4 text-accent" />}
+				{title}
+				<slot name="aside" />
+			</h2>
+		)
+	}
 	<slot />
 </section>

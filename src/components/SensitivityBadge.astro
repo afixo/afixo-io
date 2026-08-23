@@ -1,6 +1,6 @@
 ---
 import { SENSITIVITY_LABEL, type Sensitivity } from '../lib/api';
-import { SENSITIVITY_CLASS } from '../lib/ui';
+import { SENSITIVITY_CLASS, SENSITIVITY_HELP } from '../lib/ui';
 
 interface Props {
 	level: Sensitivity;
@@ -9,6 +9,6 @@ interface Props {
 const { level } = Astro.props;
 ---
 
-<span class:list={['badge', SENSITIVITY_CLASS[level]]} title={`sensitivity ${level}`}>
+<span class:list={['badge', SENSITIVITY_CLASS[level]]} title={SENSITIVITY_HELP[level]}>
 	{level} · {SENSITIVITY_LABEL[level]}
 </span>

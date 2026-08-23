@@ -1,0 +1,83 @@
+---
+/**
+ * Inline stroke icons (24×24 viewBox, currentColor). Decorative by default —
+ * pass `label` to make one meaningful (it becomes the accessible name).
+ */
+interface Props {
+	name: IconName;
+	class?: string;
+	label?: string;
+	[key: `data-${string}`]: string | undefined;
+}
+
+export type IconName =
+	| 'home'
+	| 'persona'
+	| 'key'
+	| 'shield'
+	| 'compass'
+	| 'list'
+	| 'sun'
+	| 'moon'
+	| 'monitor'
+	| 'github'
+	| 'check'
+	| 'arrow'
+	| 'info'
+	| 'warning'
+	| 'sparkle'
+	| 'lock'
+	| 'eye'
+	| 'eye-off'
+	| 'copy'
+	| 'menu'
+	| 'close'
+	| 'logout'
+	| 'external';
+
+const paths: Record<IconName, string> = {
+	home: 'M3 11.5 12 4l9 7.5M5 10v10h5v-6h4v6h5V10',
+	persona: 'M12 12a4 4 0 1 0 0-8 4 4 0 0 0 0 8Zm-7 8a7 7 0 0 1 14 0',
+	key: 'M15 3a6 6 0 1 1-5.3 8.8L3 18.5V21h3v-2h2v-2h2l1.7-1.7A6 6 0 0 1 15 3Zm2 5h.01',
+	shield: 'M12 3 4 6v6c0 4.5 3.4 7.8 8 9 4.6-1.2 8-4.5 8-9V6l-8-3Zm-3 9 2 2 4-4',
+	compass: 'M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18Zm3.5-12.5-2 5-5 2 2-5 5-2Z',
+	list: 'M8 6h12M8 12h12M8 18h12M4 6h.01M4 12h.01M4 18h.01',
+	sun: 'M12 17a5 5 0 1 0 0-10 5 5 0 0 0 0 10Zm0-15v2m0 16v2M4.2 4.2l1.4 1.4m12.8 12.8 1.4 1.4M2 12h2m16 0h2M4.2 19.8l1.4-1.4M18.4 5.6l1.4-1.4',
+	moon: 'M20 14.5A8 8 0 0 1 9.5 4a8 8 0 1 0 10.5 10.5Z',
+	monitor: 'M4 5h16v11H4V5Zm4 15h8m-4-4v4',
+	github: 'M12 2.5a9.5 9.5 0 0 0-3 18.5c.5.1.7-.2.7-.5v-1.8c-2.7.6-3.3-1.1-3.3-1.1-.4-1.1-1-1.4-1-1.4-.9-.6.1-.6.1-.6 1 .1 1.5 1 1.5 1 .9 1.5 2.3 1.1 2.8.8.1-.6.3-1.1.6-1.3-2.1-.2-4.3-1-4.3-4.7 0-1 .4-1.9 1-2.5-.1-.3-.4-1.2.1-2.5 0 0 .8-.3 2.6 1a9 9 0 0 1 4.8 0c1.8-1.3 2.6-1 2.6-1 .5 1.3.2 2.2.1 2.5.6.6 1 1.5 1 2.5 0 3.7-2.2 4.5-4.3 4.7.3.3.7.9.7 1.8v2.6c0 .3.2.6.7.5A9.5 9.5 0 0 0 12 2.5Z',
+	check: 'm5 12.5 4.5 4.5L19 7.5',
+	arrow: 'M5 12h14m-6-6 6 6-6 6',
+	info: 'M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18Zm0-10v5m0-8.5h.01',
+	warning: 'M12 3 2.5 20h19L12 3Zm0 7v4m0 3.5h.01',
+	sparkle: 'M12 3l1.8 5.2L19 10l-5.2 1.8L12 17l-1.8-5.2L5 10l5.2-1.8L12 3Zm7 11 .8 2.2L22 17l-2.2.8L19 20l-.8-2.2L16 17l2.2-.8L19 14Z',
+	lock: 'M7 11V8a5 5 0 0 1 10 0v3M5 11h14v10H5V11Zm7 4v3',
+	eye: 'M2.5 12S6 5.5 12 5.5 21.5 12 21.5 12 18 18.5 12 18.5 2.5 12 2.5 12Zm9.5 3a3 3 0 1 0 0-6 3 3 0 0 0 0 6Z',
+	'eye-off': 'M3 3l18 18M10.6 10.6A3 3 0 0 0 13.4 13.4M7.4 7.4C4.4 9 2.5 12 2.5 12s3.5 6.5 9.5 6.5c1.8 0 3.3-.5 4.6-1.3M9.9 5.8C10.6 5.6 11.3 5.5 12 5.5c6 0 9.5 6.5 9.5 6.5s-.9 1.7-2.7 3.4',
+	copy: 'M9 9h10v12H9V9Zm-4 6V3h10',
+	menu: 'M4 7h16M4 12h16M4 17h16',
+	close: 'M6 6l12 12M18 6 6 18',
+	logout: 'M10 4H5v16h5m4-4 4-4-4-4m4 4H9',
+	external: 'M14 5h5v5m0-5-9 9M19 14v5H5V5h5',
+};
+
+const { name, class: className, label, ...rest } = Astro.props;
+const d = paths[name];
+---
+
+<svg
+	class:list={['inline-block size-[1.1em] shrink-0', className]}
+	viewBox="0 0 24 24"
+	fill={name === 'github' ? 'currentColor' : 'none'}
+	stroke={name === 'github' ? 'none' : 'currentColor'}
+	stroke-width="1.75"
+	stroke-linecap="round"
+	stroke-linejoin="round"
+	aria-hidden={label ? undefined : 'true'}
+	role={label ? 'img' : undefined}
+	aria-label={label}
+	focusable="false"
+	{...rest}
+>
+	<path d={d}></path>
+</svg>

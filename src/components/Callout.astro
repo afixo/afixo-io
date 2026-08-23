@@ -1,0 +1,25 @@
+---
+/** An explanatory box: info (how something works), tip, warning, danger. */
+import Icon from './Icon.astro';
+
+interface Props {
+	kind?: 'info' | 'tip' | 'warn' | 'danger';
+	title?: string;
+	id?: string;
+	class?: string;
+	hidden?: boolean;
+}
+
+const { kind = 'info', title, id, class: className, hidden } = Astro.props;
+const icon = kind === 'warn' || kind === 'danger' ? 'warning' : kind === 'tip' ? 'sparkle' : 'info';
+const tone =
+	kind === 'warn' ? 'text-warn' : kind === 'danger' ? 'text-danger' : kind === 'tip' ? 'text-ok' : 'text-info';
+---
+
+<div id={id} class:list={['callout', `callout-${kind}`, className]} role={kind === 'danger' ? 'alert' : undefined} hidden={hidden}>
+	<Icon name={icon} class:list={['mt-0.5 size-4', tone]} />
+	<div class="min-w-0 flex-1">
+		{title && <p class="font-semibold">{title}</p>}
+		<div class:list={['text-ink-2', title && 'mt-0.5']}><slot /></div>
+	</div>
+</div>

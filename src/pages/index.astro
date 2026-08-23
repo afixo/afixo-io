@@ -1,73 +1,135 @@
 ---
 import Base from '../layouts/Base.astro';
 import SiteHeader from '../components/SiteHeader.astro';
+import Icon, { type IconName } from '../components/Icon.astro';
 
-const features = [
+const features: { icon: IconName; title: string; body: string }[] = [
 	{
+		icon: 'persona',
 		title: 'Context-specific personas',
-		body: 'A subject keeps several partial identities — social, work, legal — each a bundle of typed fields graded 0–3 by sensitivity.',
+		body: 'Keep several partial identities — social, work, legal — each a bundle of typed fields graded 0–3 by sensitivity.',
 	},
 	{
+		icon: 'shield',
 		title: 'Purpose-aware disclosure',
 		body: 'Requesters declare a purpose with every call. Grant-only rules keyed on (requester, purpose) decide which persona and which fields come back. Deny by default.',
 	},
 	{
+		icon: 'list',
 		title: 'Audited by construction',
-		body: 'Every allow and deny is written to a hash-chained log the subject can read and verify: who asked, why, and exactly which keys were released.',
+		body: 'Every allow and deny is written to a hash-chained log you can read and verify: who asked, why, and exactly which keys were released.',
 	},
 ];
 
-const sample = `GET https://api.afixo.io/v1/disclose/alice?purpose=shipping
-Authorization: Bearer <requester token>
-
-HTTP/1.1 200 OK
-{
-  "decision": "allow",
-  "persona": "shipping",
-  "fields": { "name": "Alice Example", "postal_address": "1 Example Row, Leeds" },
-  "withheld": ["dob"],
-  "decision_id": "dec_01j9…"
-}`;
+const steps = [
+	{ n: '1', title: 'Describe yourself, per context', body: 'Create personas and grade each field. Your date of birth is “high”; your job title is “low”.' },
+	{ n: '2', title: 'Write rules, not code', body: 'For a requester and a purpose, pick the persona, a sensitivity ceiling and optionally an allow-list.' },
+	{ n: '3', title: 'Let callers ask', body: 'An integrator calls one endpoint with a purpose and gets exactly the fields your rules permit — or a uniform 403.' },
+];
 ---
 
-<Base title="Developer identity infrastructure">
+<Base title="Identity that knows who is asking, and why">
 	<SiteHeader />
-	<main class="mx-auto max-w-5xl px-6 py-16">
-		<section class="max-w-3xl">
-			<p class="text-sm font-medium text-brand-600 dark:text-brand-500">Afixo</p>
-			<h1 class="mt-2 text-4xl font-semibold tracking-tight">Developer identity infrastructure</h1>
-			<p class="mt-4 text-lg text-zinc-600 dark:text-zinc-400">
-				Context-specific personas, purpose-aware disclosure at the API boundary. One endpoint returns exactly the
-				identity a caller is permitted to see — for that caller, for that reason — and nothing else.
-			</p>
-			<div class="mt-8 flex flex-wrap gap-3">
-				<a href="/login" class="btn btn-primary">Sign in with GitHub</a>
-				<a href="https://docs.afixo.io/" class="btn">Read the API reference</a>
+	<main id="main">
+		<section class="hero-bg">
+			<div class="mx-auto grid max-w-6xl gap-12 px-4 pt-16 pb-20 sm:px-6 lg:grid-cols-[1.1fr_1fr] lg:items-center lg:pt-24">
+				<div>
+					<p class="pill pill-brand"><Icon name="sparkle" class="size-3.5" /> Selective disclosure for developers</p>
+					<h1 class="mt-5 text-4xl font-semibold tracking-tight sm:text-5xl">
+						Identity that knows <span class="text-accent">who is asking</span>, and why.
+					</h1>
+					<p class="mt-5 max-w-xl text-lg text-ink-2">
+						Afixo keeps a person as several context-specific personas. One endpoint returns exactly the identity a caller
+						is permitted to see — for that caller, for that stated reason — and nothing else.
+					</p>
+					<div class="mt-8 flex flex-wrap gap-3">
+						<a href="/login" class="btn btn-primary"><Icon name="github" class="size-4" /> Sign in with GitHub</a>
+						<a href="https://docs.afixo.io/getting-started/" class="btn">Integrate in 5 minutes <Icon name="arrow" class="size-4" /></a>
+					</div>
+					<p class="mt-4 text-xs text-ink-3">Free while in preview · no credit card · your data stays yours.</p>
+				</div>
+
+				<figure class="terminal text-[0.8rem] leading-relaxed" aria-label="Example disclosure request and response">
+					<div class="terminal-bar">
+						<span class="terminal-dot"></span><span class="terminal-dot"></span><span class="terminal-dot"></span>
+						<span class="ml-2 font-mono">api.afixo.io</span>
+					</div>
+					<pre class="overflow-x-auto p-4 font-mono"><code><span class="code-dim">$</span> curl https://api.afixo.io/v1/disclose/alice?purpose=shipping \
+     -H "Authorization: Bearer $TOKEN"
+
+<span class="code-dim">HTTP/2 200</span>
+&#123;
+  <span class="code-key">"decision"</span>: <span class="code-str">"allow"</span>,
+  <span class="code-key">"persona"</span>: <span class="code-str">"legal"</span>,
+  <span class="code-key">"fields"</span>: &#123;
+    <span class="code-key">"full_name"</span>: <span class="code-str">"Alice Example"</span>,
+    <span class="code-key">"postal_address"</span>: <span class="code-str">"1 Example Row, Leeds"</span>
+  &#125;,
+  <span class="code-key">"withheld"</span>: [<span class="code-str">"dob"</span>, <span class="code-str">"email"</span>],
+  <span class="code-key">"decision_id"</span>: <span class="code-str">"01a02da7-…"</span>
+&#125;</code></pre>
+				</figure>
 			</div>
 		</section>
 
-		<section class="mt-16 grid gap-6 md:grid-cols-3">
-			{
-				features.map((f) => (
-					<article class="card">
-						<h2 class="font-semibold">{f.title}</h2>
-						<p class="mt-2 text-sm text-zinc-600 dark:text-zinc-400">{f.body}</p>
-					</article>
-				))
-			}
+		<section class="mx-auto max-w-6xl px-4 py-16 sm:px-6">
+			<h2 class="text-center text-xs font-semibold tracking-widest text-ink-3 uppercase">How it works</h2>
+			<ol class="mt-8 grid gap-6 md:grid-cols-3">
+				{
+					steps.map((s) => (
+						<li class="card relative">
+							<span class="absolute -top-3 left-5 grid size-7 place-items-center rounded-full bg-brand-600 text-xs font-bold text-white shadow-sm">
+								{s.n}
+							</span>
+							<h3 class="mt-2 font-semibold">{s.title}</h3>
+							<p class="mt-2 text-sm text-ink-2">{s.body}</p>
+						</li>
+					))
+				}
+			</ol>
 		</section>
 
-		<section class="mt-16">
-			<h2 class="text-sm font-semibold tracking-wide text-zinc-500 uppercase">The product endpoint</h2>
-			<pre
-				class="mt-3 overflow-x-auto rounded-lg border border-zinc-200 bg-zinc-50 p-4 font-mono text-sm leading-relaxed dark:border-zinc-800 dark:bg-zinc-900"><code>{sample}</code></pre>
-			<p class="mt-3 text-sm text-zinc-600 dark:text-zinc-400">
-				Same subject, different purpose or different requester → a different persona, a different field set, or a
-				uniform <code class="font-mono">403</code>. Unknown subjects are indistinguishable from denied ones.
-			</p>
+		<section class="border-y border-line bg-surface">
+			<div class="mx-auto grid max-w-6xl gap-6 px-4 py-16 sm:px-6 md:grid-cols-3">
+				{
+					features.map((f) => (
+						<article class="flex gap-4">
+							<span class="grid size-10 shrink-0 place-items-center rounded-lg bg-brand-50 text-brand-700 dark:bg-brand-900/50 dark:text-brand-200">
+								<Icon name={f.icon} class="size-5" />
+							</span>
+							<div>
+								<h2 class="font-semibold">{f.title}</h2>
+								<p class="mt-1.5 text-sm text-ink-2">{f.body}</p>
+							</div>
+						</article>
+					))
+				}
+			</div>
+		</section>
+
+		<section class="mx-auto max-w-6xl px-4 py-16 sm:px-6">
+			<div class="card flex flex-col items-start gap-6 md:flex-row md:items-center md:justify-between">
+				<div class="max-w-2xl">
+					<h2 class="text-xl font-semibold">Built for the people on both sides of the request</h2>
+					<p class="mt-2 text-sm text-ink-2">
+						Subjects manage personas and rules in the dashboard. Integrators get a plain REST API, an MCP server for AI
+						agents, and a decision id they can quote. Same subject, different purpose or requester → a different persona,
+						a different field set, or a uniform <code class="font-mono">403</code>.
+					</p>
+				</div>
+				<div class="flex shrink-0 flex-wrap gap-3">
+					<a href="https://docs.afixo.io/" class="btn">Documentation</a>
+					<a href="https://mcp.afixo.io/" class="btn">MCP server</a>
+				</div>
+			</div>
 		</section>
 	</main>
-	<footer class="mx-auto max-w-5xl px-6 py-10 text-xs text-zinc-500">
-		<a href="https://docs.afixo.io/" class="hover:underline">API reference</a> · <a href="/login" class="hover:underline">Sign in</a>
+	<footer class="mx-auto flex max-w-6xl flex-wrap items-center justify-between gap-3 px-4 py-10 text-xs text-ink-3 sm:px-6">
+		<p>© Afixo · identity infrastructure for developers</p>
+		<nav class="flex gap-4" aria-label="Footer">
+			<a href="https://docs.afixo.io/" class="hover:underline">Docs</a>
+			<a href="https://mcp.afixo.io/" class="hover:underline">MCP</a>
+			<a href="/login" class="hover:underline">Sign in</a>
+		</nav>
 	</footer>
 </Base>

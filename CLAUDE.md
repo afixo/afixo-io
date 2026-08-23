@@ -8,13 +8,14 @@ beside the other repos).
 
 ```
 browser → afixo.io     → this Worker ─┬─ /api/* ───────► [API binding] → afixo-api → origin.afixo.io     → gateway :8080
-client  → api.afixo.io → this Worker ─┴─ src/fetch.ts ─► [API binding] → afixo-api → origin-api.afixo.io → gateway :8081
+client  → api.afixo.io → this Worker ─┴─ middleware ────► [API binding] → afixo-api → origin-api.afixo.io → gateway :8081
 ```
 
-`src/fetch.ts` (Astro advanced routing) runs before the Astro pipeline: a request whose
-hostname is in the `MACHINE_HOSTS` var goes straight to the `API` binding with its original
-URL — afixo-api's machine mode forwards the allowed paths to the gateway. Everything else
-runs through Astro. Public pages (`/`, `/login`, `/404`) are prerendered; `/app/*` and
+`src/middleware.ts` runs first on every on-demand request: a request whose hostname is in
+the `MACHINE_HOSTS` var goes straight to the `API` binding with its original URL — afixo-api's
+machine mode forwards the allowed paths to the gateway. Everything else runs through Astro.
+(Astro's `src/fetch.ts` advanced-routing entry is not used: it breaks `astro dev` with the
+Cloudflare adapter, withastro/astro#17181.) Public pages (`/`, `/login`, `/404`) are prerendered; `/app/*` and
 `/api/*` are rendered on demand. `/docs` redirects to **docs.afixo.io** (separate repo
 `documents`, Worker `afixo-docs`) — do not add documentation pages here. The dashboard's scripts call same-origin `/api/v1/*`; the
 Explorer alone calls `api.afixo.io` cross-origin, like any integrator (the gateway answers CORS).
@@ -27,7 +28,8 @@ landing page — harmless; API paths (`/v1/*`, `/oauth/*`) never collide with as
 - **This Worker holds no secrets.** No credential `vars`, no `.dev.vars`, no KV/D1/Images
   (`session: false`, `imageService: 'compile'` — nothing auto-provisions on deploy).
 - **`/api/*` and machine-host requests are forwarded untouched** (`src/pages/api/[...path].ts`
-  and `src/fetch.ts` → `env.API.fetch(request)`), and `src/middleware.ts` skips `/api/*`. Never
+  and the machine-host branch of `src/middleware.ts` → `env.API.fetch(request)`); the rest of
+  the middleware skips `/api/*`. Never
   parse, rewrite or decorate them: afixo-api owns cookies, CSRF, bearer pass-through and the
   tunnel hop. Never add a route, a tunnel hostname or a direct origin call here.
 - **The `__Host-afixo_state` cookie is cosmetic.** It only decides "render the dashboard or
@@ -46,6 +48,27 @@ landing page — harmless; API paths (`/v1/*`, `/oauth/*`) never collide with as
 - **CSP is `script-src 'self'; style-src 'self'`.** No inline `<script>`, `<style>` or `style=""`.
   `assetsInlineLimit: 0` and `inlineStylesheets: 'never'` keep the build that way. Headers live in
   `public/_headers` (assets) and `src/middleware.ts` (on-demand) — keep them identical.
+
+## Design system (`src/styles/global.css`)
+
+Tailwind v4, CSS-first — no config file, no Bootstrap, no second styling system.
+
+- **Colour only ever comes from a semantic token** (`--color-canvas/surface/ink/ink-2/ink-3/line/accent`,
+  status `ok|warn|danger|info` + their `-bg`). Each is declared once with `light-dark()`; which side
+  applies is decided by `color-scheme`, which `public/theme.js` sets from the user's choice
+  (system / light / dark) before first paint. **Never write a raw palette class** (`text-zinc-500`,
+  `bg-emerald-50`) in a template — it cannot follow the theme.
+- **Every token pair meets WCAG 2.2 AA** (4.5:1 body, 3:1 large) in *both* themes. Re-check after
+  touching a token: `scripts/contrast-audit.js` audits every page in both themes (see its header).
+- A utility on an element beats an `@layer components` rule whatever the specificity, because
+  `utilities` is the later layer. Rules that must override a utility (e.g. hiding the inactive
+  theme-toggle icons, which carry `inline-block`) go in `@layer utilities`.
+- Reusable primitives are `@layer components` classes (`.btn`, `.input`, `.card`, `.pill`, `.tip`,
+  `.callout`, `.table`, `.skeleton`); anything one-off stays a utility class in the template.
+- A `<label>` may not contain interactive content, so a field with a "?" tooltip uses
+  `components/Field.astro` (`<label for>` + `<Info>` as a sibling), never `<label><Info/></label>`.
+- Astro trims whitespace between a text line and an element on the next line: write `{' '}` at the
+  end of the text line when a space must survive (`… written to your{' '}` + `<a>audit log</a>`).
 
 ## Commands
 
@@ -69,21 +92,24 @@ For agents: `astro dev --background` (+ `astro dev stop|status|logs`) keeps the 
 
 ```
 astro.config.mjs       adapter cloudflare (imageService compile; ../afixo-api as auxiliary Worker in `astro dev` only)
-src/fetch.ts           advanced-routing entry: MACHINE_HOSTS → env.API.fetch(request), else astro()
 wrangler.jsonc         Worker config; custom domains incl. api.afixo.io; env.staging restates assets/services/vars + its own routes
 worker-configuration.d.ts  generated by `wrangler types --include-runtime=false` — committed
 src/env.d.ts           declares `Fetcher`, the `cloudflare:workers` module and App.Locals
 public/_headers        security headers + CSP for static assets
-src/middleware.ts      /app/* cookie gate → /login; security headers on on-demand responses
+public/theme.js        theme bootstrap: sets <html data-theme|data-theme-mode> before first paint (external — CSP has no inline scripts)
+src/middleware.ts      machine hosts → env.API.fetch(request); /app/* cookie gate → /login; security headers
 src/pages/api/[...path].ts   ALL → env.API.fetch(request)
 src/pages/{index,login,404}.astro   prerendered; /docs → redirect to docs.afixo.io (astro.config.mjs)
 src/pages/app/*.astro  prerender = false: overview, personas, clients, policies, explorer, audit
 src/layouts/           Base.astro (html shell), App.astro (sidebar, handle, sign-out)
-src/components/        Nav, SiteHeader, Card, SensitivityBadge, Empty
+src/components/        Nav, SiteHeader, ThemeToggle, Card, Callout, Field, Info, Icon, SensitivityBadge, Empty
+src/styles/global.css  the design system: @theme tokens (light-dark()), @layer components primitives
 src/lib/api.ts         typed /api/v1 client (CSRF header, single-flight refresh, retry once)
 src/lib/session.ts     parse the state cookie (server: Astro.cookies, client: document.cookie)
 src/lib/machine.ts     Explorer: token + disclose against PUBLIC_MACHINE_API_URL; localStorage clients
 src/lib/ui.ts          DOM helpers for the vanilla <script> panels (TODO: Preact islands if they grow)
+src/lib/dialog.ts      <dialog>-based confirm() (window.confirm cannot be styled)
+src/lib/tips.ts        tooltip click/Escape behaviour (hover and focus are pure CSS)
 .github/workflows/     ci.yml (build + deploy dry-run), deploy.yml (master → staging; dispatch → staging|production)
 ```
 
