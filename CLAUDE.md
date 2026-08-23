@@ -32,6 +32,11 @@ landing page — harmless; API paths (`/v1/*`, `/oauth/*`) never collide with as
   the middleware skips `/api/*`. Never
   parse, rewrite or decorate them: afixo-api owns cookies, CSRF, bearer pass-through and the
   tunnel hop. Never add a route, a tunnel hostname or a direct origin call here.
+- **The machine-host branch in `src/middleware.ts` must stay above `if (context.isPrerendered)`.**
+  `/oauth/*` and `/v1/*` match no Astro route, so Astro resolves them to the *prerendered* 404: an
+  early return there answers the machine API with an HTML page and no CORS headers, and every
+  cross-origin call from the dashboard fails its preflight. `src/fetch.ts` ran before Astro's router
+  and never had this problem — the ordering only became load-bearing when the branch moved here.
 - **The `__Host-afixo_state` cookie is cosmetic.** It only decides "render the dashboard or
   redirect to /login". Never trust it for anything; the origin is the authority.
 - **Never call the origin** (`origin.afixo.io`) or the gateway from this repo.
@@ -45,6 +50,9 @@ landing page — harmless; API paths (`/v1/*`, `/oauth/*`) never collide with as
   Worker; without this list the dashboard, the GitHub login link and the OAuth callback all land on the
   404 page. **Every on-demand route (`prerender = false`) and every path the Worker must see on a
   browser navigation goes in that list.**
+  Note: `wrangler dev --local` does *not* reproduce this faithfully — it answers `run_worker_first`
+  paths from the asset layer, so the Worker looks dead locally for `/v1/*` and `/oauth/*`. Trust
+  deployed behaviour over local when testing machine-host routing.
 - **CSP is `script-src 'self'; style-src 'self'`.** No inline `<script>`, `<style>` or `style=""`.
   `assetsInlineLimit: 0` and `inlineStylesheets: 'never'` keep the build that way. Headers live in
   `public/_headers` (assets) and `src/middleware.ts` (on-demand) — keep them identical.

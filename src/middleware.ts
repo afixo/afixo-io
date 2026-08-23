@@ -76,8 +76,13 @@ function withSecurityHeaders(response: Response): Response {
 }
 
 export const onRequest = defineMiddleware(async (context, next) => {
-	if (context.isPrerendered) return next();
-
+	// Machine hosts come first — before the prerendered short-circuit. On such a
+	// host there is no site to serve: every path is the machine API and has to
+	// reach afixo-api. `/oauth/*` and `/v1/*` match no Astro route, so Astro
+	// resolves them to the prerendered 404; returning early there answered the
+	// machine API with an HTML page and no CORS headers, which the browser sees
+	// as a failed preflight. (src/fetch.ts ran before Astro's router, so this
+	// ordering only matters now that the branch lives in the middleware.)
 	if (machineHosts().has(context.url.hostname.toLowerCase())) {
 		const api = (env as Partial<typeof env>).API;
 		if (!api) {
@@ -90,6 +95,8 @@ export const onRequest = defineMiddleware(async (context, next) => {
 		// lets afixo-api's own redirects and status codes reach the client.
 		return api.fetch(context.request);
 	}
+
+	if (context.isPrerendered) return next();
 
 	const { pathname } = context.url;
 	if (pathname.startsWith(API_PREFIX)) return next();
